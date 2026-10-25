@@ -113,6 +113,7 @@ struct ProfileView: View {
 
     private var faceStatus: String {
         if app.account.meReference != nil { return String(localized: "Eymra can find you in your photos, even among friends.") }
+        if app.account.faceNeedsRedo { return String(localized: "Eymra got better at recognising you. Please scan your face again.") }
         if app.account.faceUnusable { return String(localized: "We saved your photos, but this device couldn't learn your face from them.") }
         return String(localized: "Not set up yet. Eymra can't tell you apart from your friends.")
     }

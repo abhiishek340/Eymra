@@ -211,7 +211,10 @@ struct SetupView: View {
                 GlassChip(title: String(localized: "A mix"), selected: vm.mix == .balanced) { vm.mix = .balanced }
                 GlassChip(title: String(localized: "More places"), selected: vm.mix == .moreScenery) { vm.mix = .moreScenery }
             }
-            if app.account.meReference == nil {
+            if app.account.faceNeedsRedo {
+                Text("Eymra got better at recognising you. Please scan your face again in the You tab.")
+                    .font(.system(size: 13)).foregroundStyle(Theme.inkSoft)
+            } else if app.account.meReference == nil {
                 Text(app.account.faceUnusable
                      ? "Eymra couldn't learn your face on this device, so it can't tell you apart from friends."
                      : "Tip: set up your face in the You tab so Eymra can tell you apart from your friends.")
