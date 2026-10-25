@@ -11,13 +11,13 @@ nonisolated struct ClaudeJudge: JudgeProvider {
     }
 
     static let models: [ModelOption] = [
-        ModelOption(id: "claude-sonnet-5-5", name: "Claude Sonnet 5.5", estimate: "≈ $0.15"),
-        ModelOption(id: "claude-haiku-5-5", name: "Claude Haiku 5.5 (fastest)", estimate: "≈ $0.01"),
-        ModelOption(id: "claude-opus-5-5", name: "Claude Opus 5.5 (best)", estimate: "≈ $0.30"),
+        ModelOption(id: "claude-sonnet-5-5", name: "Balanced · Sonnet", estimate: "about 15¢ a go"),
+        ModelOption(id: "claude-haiku-5-5", name: "Fast and cheap · Haiku", estimate: "about 1¢ a go"),
+        ModelOption(id: "claude-opus-5-5", name: "Best quality · Opus", estimate: "about 30¢ a go"),
     ]
 
     private static let log = Logger(subsystem: "app.eymra", category: "judge")
-    static let endpoint = URL(string: "https://api.anthropic.com/v1/messages")!
+    static let endpoint: URL? = URL(string: "https://api.anthropic.com/v1/messages")
 
     var model: String
     var apiKey: String
@@ -45,6 +45,12 @@ nonisolated struct ClaudeJudge: JudgeProvider {
         return try JudgeSchema.parseBestOf(json, sent: images.map(\.photoID))
     }
 
+    func title(_ images: [JudgeImage]) async throws -> String {
+        let body = requestBody(images: images, instruction: JudgePrompt.titleInstruction,
+                               schema: JudgeSchema.titleSchema, maxTokens: 500)
+        return try JudgeSchema.parseTitle(try await send(body))
+    }
+
     // MARK: Request
 
     func requestBody(images: [JudgeImage], instruction: String, schema: [String: Any], maxTokens: Int) -> [String: Any] {
@@ -67,7 +73,8 @@ nonisolated struct ClaudeJudge: JudgeProvider {
     /// Sends one request; one retry on 429, 529 and 5xx after `retry-after` or 2 s. Returns the JSON text of the first text block.
     func send(_ body: [String: Any]) async throws -> Data {
         guard !apiKey.isEmpty else { throw JudgeError.missingKey }
-        var request = URLRequest(url: Self.endpoint)
+        guard let endpoint = Self.endpoint else { throw JudgeError.badResponse("bad endpoint") }
+        var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
         request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")

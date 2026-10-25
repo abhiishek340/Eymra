@@ -58,13 +58,15 @@ nonisolated struct FeatureExtractor: FeatureExtracting {
         }
         let expressions = faces.isEmpty ? [] : Self.expressions(in: image)
 
+        let facePrints = await FaceEmbedder.prints(for: faces.map { Self.upperLeft($0.boundingBox.cgRect) }, in: image)
         let faceFeatures: [FaceFeature] = faces.enumerated().map { i, face in
             let box = Self.upperLeft(face.boundingBox.cgRect)
             let match = expressions.max { $0.box.intersectionArea(box) < $1.box.intersectionArea(box) }
             let overlaps = match.map { $0.box.intersectionArea(box) > 0 } ?? false
             return FaceFeature(box: box, captureQuality: qualities[i],
                                eyesClosed: overlaps ? (match?.eyesClosed ?? false) : false,
-                               smiling: overlaps ? (match?.smiling ?? false) : false)
+                               smiling: overlaps ? (match?.smiling ?? false) : false,
+                               print: facePrints.indices.contains(i) ? facePrints[i] : [])
         }
         let salient = (saliency?.salientObjects ?? []).map { Self.upperLeft($0.boundingBox.cgRect) }
         let saliencyBox = salient.dropFirst().reduce(salient.first) { $0?.union($1) }

@@ -45,6 +45,37 @@ nonisolated enum Tuning {
     static let meHumanArea: Float = 0.25
     static let detailSaliencyArea: Float = 0.25
 
+    // MARK: Recognising the user (needsCalibration on device)
+    /// Faces whose crops get a feature print, largest first.
+    static let maxFacePrints = 6
+    static let faceCropMargin: Float = 0.25
+    /// Match threshold = mean distance between the user's own reference prints × this factor, clamped.
+    static let meSpreadFactor: Float = 1.25
+    static let meDistanceMin: Float = 0.45
+    static let meDistanceMax: Float = 0.95
+    /// Used when there is only one reference print.
+    static let meDistanceDefault: Float = 0.7
+
+    // MARK: Personal preferences
+    static let meShareMostlyMe: Float = 0.6
+    static let meShareFriends: Float = 0.5
+    static let meShareMix: Float = 0.4
+    static let meSharePlaces: Float = 0.2
+    /// Bonus when the set has fewer photos of the user than they asked for.
+    static let meShareBonus: Float = 0.12
+    /// Penalty for photos of friends without the user, by how much the user likes group shots.
+    static let friendsOnlyPenaltyRarely: Float = 0.15
+    static let friendsOnlyPenaltySometimes: Float = 0.06
+    static let groupLoveBonus: Float = 0.06
+    static let groupRarelyPenalty: Float = 0.06
+
+    // MARK: Story
+    /// Bonus for the first pick from a place, scaled by how many photos were taken there (sqrt).
+    static let coverageBonus: Float = 0.10
+    /// Closer preference: a strong shot from the last place, and from late in the day (scaled by time 0–1).
+    static let closerLastSceneBonus: Float = 0.05
+    static let closerLateBonus: Float = 0.20
+
     // MARK: Stage 6 – AI Judge
     static let judgeBatchSize = 20
     static let judgeMaxImages = 120

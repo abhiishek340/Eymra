@@ -12,12 +12,13 @@ struct ExplanationsTests {
                                           categoryCountInSet: 1, judge: nil))
         #expect(r.contains("12"))
         #expect(r.lowercased().contains("sharpest"))
+        #expect(r.contains("almost-same"))
     }
 
     @Test func onlyViewIsCalledOut() {
         let r = Explanations.reason(.init(score: score(t: 0.5, a: 0.5), clusterSize: 1, sceneLabel: "the ridge",
                                           categoryCountInSet: 1, judge: nil))
-        #expect(r.contains("Only wide view"))
+        #expect(r == "The big view of the day")
     }
 
     @Test func judgeReasonWins() {

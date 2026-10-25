@@ -24,5 +24,10 @@ nonisolated enum JudgePrompt {
         "Judge each of the \(count) images above on its own. Return one entry per image."
     }
 
+    static let titleInstruction = """
+    These photos will be posted together, in this order, as one story. Give the story a short, warm title of 3 to 6 words, \
+    like the title of a journal entry. Plain words, no names, no hashtags, no emojis, no quotation marks.
+    """
+
     static let bestOfInstruction = "These are near-identical shots of the same moment. Pick the one to post."
 }

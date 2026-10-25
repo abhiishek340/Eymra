@@ -22,6 +22,8 @@
 	<string>1</string>
 	<key>FacebookAppID</key>
 	<string>$(FACEBOOK_APP_ID)</string>
+	<key>GoogleClientID</key>
+	<string>$(GOOGLE_CLIENT_ID)</string>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>instagram</string>
@@ -31,10 +33,12 @@
 		<string>fb</string>
 		<string>twitter</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Eymra uses the camera once, to learn what you look like so it can find you in your photos. It stays on your phone.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Eymra saves your picks to an album.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Eymra reads your photos on this phone to find the ones worth posting. Nothing is uploaded unless you turn on AI Judge.</string>
+	<string>Eymra reads your photos on this phone to find the ones worth posting. Nothing is uploaded unless you turn on Claude's help.</string>
 	<key>PHPhotoLibraryPreventAutomaticLimitedAccessAlert</key>
 	<true/>
 	<key>UILaunchScreen</key>

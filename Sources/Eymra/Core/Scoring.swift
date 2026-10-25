@@ -13,7 +13,9 @@ nonisolated enum Scoring {
                       features: [String: FeatureRecord],
                       scenes: [Scene],
                       groups: [(sceneID: String, members: [String])],
-                      primaryRatio: AspectRatio) -> Output {
+                      primaryRatio: AspectRatio,
+                      me: MeReference? = nil) -> Output {
+        let meThreshold = me.map(Identity.threshold(for:))
         let ids = groups.flatMap(\.members).filter { features[$0] != nil && photos[$0] != nil }
         let groupOf: [String: Int] = Dictionary(uniqueKeysWithValues: groups.enumerated().flatMap { gi, g in
             g.members.map { ($0, gi) }
@@ -45,7 +47,14 @@ nonisolated enum Scoring {
                 fits[ratio] = cropFit(ratio: ratio, imageAspect: p.aspect, saliency: f.saliencyBox)
             }
             let c = composition(cropFit: fits[primaryRatio] ?? 1, saliency: f.saliencyBox)
-            let people = f.faces.isEmpty ? nil : peopleScore(f.faces)
+            // Who is in it: the user's face index, or nil; withMe is nil when we can't tell.
+            var meIndex: Int?
+            var withMe: Bool?
+            if let me, let meThreshold, !f.faces.isEmpty, Identity.canTell(f.faces, reference: me) {
+                meIndex = Identity.meFace(in: f.faces, reference: me, threshold: meThreshold)
+                withMe = meIndex != nil
+            }
+            let people = f.faces.isEmpty ? nil : peopleScore(f.faces, meIndex: meIndex)
             var q: Float
             if let people {
                 let w = Tuning.weightsWithFaces
@@ -76,7 +85,8 @@ nonisolated enum Scoring {
             }
             if let tag { excluded[id] = tag }
             scores[id] = PhotoScore(photoID: id, technical: t, aesthetic: a, composition: c, people: people,
-                                    quality: q, cropFit: fits, category: CategoryRules.category(for: f), exclusion: tag)
+                                    quality: q, cropFit: fits, category: CategoryRules.category(for: f, withMe: withMe),
+                                    exclusion: tag, withMe: withMe)
         }
 
         // Winners: highest Q among surviving members; ties on later capture, then identifier.
@@ -135,11 +145,21 @@ nonisolated enum Scoring {
         return clamp(crop.intersectionArea(box) / box.area)
     }
 
-    static func peopleScore(_ faces: [FaceFeature]) -> Float {
+    /// Face quality. When we know which face is the user, theirs counts most: a friend blinking matters less
+    /// than the user blinking.
+    static func peopleScore(_ faces: [FaceFeature], meIndex: Int? = nil) -> Float {
         let q = faces.map { $0.captureQuality ?? 0.5 }
-        var p = 0.5 * (q.reduce(0, +) / Float(q.count)) + 0.5 * (q.min() ?? 0.5)
-        if faces.contains(where: \.eyesClosed) { p *= 0.3 }
-        if let largest = faces.max(by: { $0.box.area < $1.box.area }), largest.smiling { p += 0.1 }
+        let mean = q.reduce(0, +) / Float(q.count), worst = q.min() ?? 0.5
+        var p: Float
+        if let i = meIndex, faces.indices.contains(i) {
+            p = 0.5 * q[i] + 0.25 * mean + 0.25 * worst
+            if faces[i].eyesClosed { p *= 0.3 } else if faces.contains(where: \.eyesClosed) { p *= 0.6 }
+            if faces[i].smiling { p += 0.1 }
+        } else {
+            p = 0.5 * mean + 0.5 * worst
+            if faces.contains(where: \.eyesClosed) { p *= 0.3 }
+            if let largest = faces.max(by: { $0.box.area < $1.box.area }), largest.smiling { p += 0.1 }
+        }
         return clamp(p)
     }
 

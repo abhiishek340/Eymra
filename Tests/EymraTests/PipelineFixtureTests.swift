@@ -165,6 +165,58 @@ struct PipelineFixtureTests {
         await #expect(throws: CancellationError.self) { try await task.value }
     }
 
+    @Test func recognisesTheUserAndTheirFriend() async throws {
+        let e = try env()
+        let r = try await e.pipeline.run(e.config, options: .init(me: e.fixtures.meReference))
+        #expect(r.stats.recognisedMe)
+        let friend = try e.must(kind: "meWithView", moment: "townFriend")
+        #expect(r.scores[friend]?.withMe == false)
+        #expect(r.scores[friend]?.category == .friends)
+        let selfie = try e.must(kind: "me", moment: "cafeSelfie")
+        #expect(r.scores[selfie]?.withMe == true)
+        let group = try e.must(kind: "group", moment: "lakeGroup")
+        #expect(r.scores[group]?.withMe == true)
+        #expect(r.picks.count == 10)
+    }
+
+    @Test func storyHasAnOpenerAndACloser() async throws {
+        let e = try env()
+        let r = try await e.pipeline.run(e.config, options: .init(me: e.fixtures.meReference))
+        #expect(r.picks.first?.role == .opener)
+        #expect(r.picks.last?.role == .closer)
+        #expect(r.picks.first.map { r.scores[$0.photoID]?.withMe == true } == true)
+        #expect(!r.title.isEmpty)
+    }
+
+    @Test func mostlyMeShowsMoreOfTheUser() async throws {
+        let e = try env()
+        var places = e.config
+        places.prefs = UserPrefs(style: .places, groups: .rarely, story: .story)
+        var mostlyMe = e.config
+        mostlyMe.prefs = UserPrefs(style: .mostlyMe, groups: .sometimes, story: .story)
+        let rp = try await e.pipeline.run(places, options: .init(me: e.fixtures.meReference))
+        let rm = try await e.pipeline.run(mostlyMe, options: .init(me: e.fixtures.meReference))
+        let count = { (r: RunResult) in r.picks.filter { r.scores[$0.photoID]?.withMe == true }.count }
+        #expect(count(rm) >= count(rp))
+        // Friends-only photos are left out for someone who mostly posts themselves.
+        #expect(!rm.picks.contains { $0.category == .friends })
+    }
+
+    @Test func faceSetUpButNeverFoundTreatsEveryoneTheSame() async throws {
+        let e = try env()
+        let stranger = MeReference(prints: [Make.vector(31, dim: 32)])
+        let r = try await e.pipeline.run(e.config, options: .init(me: stranger))
+        #expect(!r.stats.recognisedMe)
+        #expect(r.stats.meNote != nil)
+        #expect(!r.picks.contains { $0.category == .friends })
+    }
+
+    @Test func judgeTitleIsUsed() async throws {
+        let e = try env(judge: StubJudge(), judgeEnabled: true)
+        let r = try await e.pipeline.run(e.config)
+        #expect(r.title == "A golden day out")
+    }
+
     @Test func progressIsReported() async throws {
         let e = try env()
         let (stream, continuation) = AsyncStream<PipelineProgress>.makeStream()

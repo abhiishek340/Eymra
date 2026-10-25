@@ -23,11 +23,14 @@ nonisolated struct FixtureSet: Sendable {
     private struct File: Codable {
         var photos: [Entry]
         var features: [FeatureRecord]
+        var meReference: MeReference?
     }
 
     var entries: [Entry]
     var features: [String: FeatureRecord]
     var directory: URL
+    /// Reference face prints of the fixture set's "you".
+    var meReference: MeReference?
 
     /// Loads Fixtures/features.json. When `rebaseTo` is set, dates shift so the newest photo is one hour before it.
     static func load(bundle: Bundle = .main, rebaseTo now: Date? = nil) throws -> FixtureSet {
@@ -41,7 +44,7 @@ nonisolated struct FixtureSet: Sendable {
             for i in entries.indices { entries[i].creationDate.addTimeInterval(shift) }
         }
         return FixtureSet(entries: entries, features: Dictionary(uniqueKeysWithValues: file.features.map { ($0.photoID, $0) }),
-                          directory: dir)
+                          directory: dir, meReference: file.meReference)
     }
 
     func record(_ e: Entry) -> PhotoRecord {

@@ -83,6 +83,7 @@ extension Category {
         case .me: "person.fill"
         case .meWithView: "figure.walk"
         case .group: "person.3.fill"
+        case .friends: "person.2.fill"
         case .view: "mountain.2.fill"
         case .food: "fork.knife"
         case .detail: "sparkle.magnifyingglass"

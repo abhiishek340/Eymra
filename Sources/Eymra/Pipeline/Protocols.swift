@@ -68,4 +68,6 @@ nonisolated protocol JudgeProvider: Sendable {
     func score(_ images: [JudgeImage]) async throws -> [JudgeScore]
     /// Picks the one to post among near-identical shots.
     func bestOf(_ images: [JudgeImage]) async throws -> BestOfAnswer
+    /// A short, warm title for the whole set.
+    func title(_ images: [JudgeImage]) async throws -> String
 }

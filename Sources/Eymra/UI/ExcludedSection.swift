@@ -1,13 +1,13 @@
 import SwiftUI
 
-/// "Everything else": every photo that didn't make the cut, with the rule that excluded it.
+/// "Other photos": everything that didn't make it, each with the reason why.
 struct ExcludedSection: View {
     @Bindable var vm: RunViewModel
     let result: RunResult
     @State private var expanded = false
     @State private var whyNot: String?
 
-    private let columns = [GridItem(.adaptive(minimum: 76), spacing: 6)]
+    private let columns = [GridItem(.adaptive(minimum: 78), spacing: 8)]
 
     private var ids: [String] {
         result.excluded.keys.sorted { a, b in
@@ -17,33 +17,42 @@ struct ExcludedSection: View {
     }
 
     var body: some View {
-        DisclosureGroup(isExpanded: $expanded) {
-            LazyVGrid(columns: columns, spacing: 6) {
-                ForEach(ids, id: \.self) { id in
-                    Button { whyNot = id } label: {
-                        PhotoThumbnail(photoID: id, longEdge: 200)
-                            .frame(height: 76)
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
-                            .overlay(alignment: .bottomLeading) {
-                                Text("Why not?")
-                                    .font(.system(size: 9, weight: .semibold))
-                                    .padding(.horizontal, 4).padding(.vertical, 2)
-                                    .background(.ultraThinMaterial, in: Capsule())
-                                    .padding(3)
-                            }
+        VStack(alignment: .leading, spacing: 14) {
+            Button {
+                withAnimation(.spring(duration: 0.4)) { expanded.toggle() }
+            } label: {
+                HStack {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Other photos (\(result.excluded.count))").font(.system(size: 19, weight: .semibold, design: .serif))
+                        Text("Tap any photo to see why it wasn't picked").font(.system(size: 13)).foregroundStyle(Theme.inkSoft)
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(result.excluded[id].map(Explanations.whyNot) ?? "")
+                    Spacer()
+                    Image(systemName: "chevron.down").rotationEffect(.degrees(expanded ? 180 : 0))
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("excludedSection")
+            if expanded {
+                LazyVGrid(columns: columns, spacing: 8) {
+                    ForEach(ids, id: \.self) { id in
+                        Button { whyNot = id } label: {
+                            PhotoThumbnail(photoID: id, longEdge: 220)
+                                .frame(height: 78)
+                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(result.excluded[id].map(Explanations.whyNot) ?? "")
+                    }
                 }
             }
-            .padding(.top, 8)
-        } label: {
-            Text("Everything else (\(result.excluded.count))").font(.headline)
         }
-        .accessibilityIdentifier("excludedSection")
+        .padding(18)
+        .glassCard()
         .sheet(item: Binding(get: { whyNot.map(IdentifiedID.init) }, set: { whyNot = $0?.id })) { item in
             WhyNotSheet(vm: vm, photoID: item.id, tag: result.excluded[item.id])
                 .presentationDetents([.medium, .large])
+                .presentationCornerRadius(36)
         }
     }
 }
@@ -65,14 +74,16 @@ struct WhyNotSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 16) {
-                PhotoThumbnail(photoID: photoID, longEdge: 800)
+        ZStack {
+            DreamBackground()
+            VStack(spacing: 18) {
+                PhotoThumbnail(photoID: photoID, longEdge: 900)
                     .aspectRatio(contentMode: .fit)
-                    .frame(maxHeight: 280)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .frame(maxHeight: 300)
+                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                Text("Why it wasn't picked").font(.system(size: 13, weight: .medium)).textCase(.uppercase).foregroundStyle(Theme.inkSoft)
                 Text(tag.map(Explanations.whyNot) ?? String(localized: "Not picked"))
-                    .font(.headline)
+                    .font(Theme.title(22))
                     .multilineTextAlignment(.center)
                     .accessibilityIdentifier("whyNotReason")
                 if canSwap {
@@ -80,18 +91,18 @@ struct WhyNotSheet: View {
                         vm.swapIn(photoID)
                         dismiss()
                     } label: {
-                        Label("Swap into the set", systemImage: "arrow.left.arrow.right").frame(maxWidth: .infinity)
+                        Label("Use this one instead", systemImage: "arrow.left.arrow.right")
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
+                    .buttonStyle(.glassPrimary)
                     .accessibilityIdentifier("swapIn")
                 }
-                Spacer()
+                Button("Close") { dismiss() }
+                    .buttonStyle(.glassSoft)
+                    .accessibilityIdentifier("whyNotClose")
+                Spacer(minLength: 0)
             }
-            .padding()
-            .navigationTitle("Why not?")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+            .padding(24)
         }
+        .foregroundStyle(Theme.ink)
     }
 }

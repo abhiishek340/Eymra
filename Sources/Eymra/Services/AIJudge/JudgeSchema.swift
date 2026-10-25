@@ -37,6 +37,18 @@ nonisolated enum JudgeSchema {
         ]
     }
 
+    static var titleSchema: [String: Any] {
+        ["type": "object", "additionalProperties": false, "required": ["title"],
+         "properties": ["title": ["type": "string"]]]
+    }
+
+    struct Title: Decodable, Sendable { var title: String }
+
+    static func parseTitle(_ json: Data) throws -> String {
+        try JSONDecoder().decode(Title.self, from: json).title
+            .trimmingCharacters(in: CharacterSet(charactersIn: "\"“” ").union(.whitespacesAndNewlines))
+    }
+
     // MARK: Decoding
 
     struct ScoreEntry: Decodable, Sendable {
