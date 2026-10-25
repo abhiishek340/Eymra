@@ -190,6 +190,7 @@ actor FeatureStore {
             let encoder = JSONEncoder()
             modelContext.insert(SavedRun(id: run.id, createdAt: run.createdAt,
                                          config: try encoder.encode(run.config), result: try encoder.encode(run)))
+            try modelContext.save()
             var all = FetchDescriptor<SavedRun>(sortBy: [SortDescriptor(\.createdAt, order: .reverse)])
             all.fetchOffset = Self.maxSavedRuns
             for old in try modelContext.fetch(all) { modelContext.delete(old) }

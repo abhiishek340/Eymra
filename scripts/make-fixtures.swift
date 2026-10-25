@@ -102,7 +102,7 @@ precondition(shots.count == 40, "expected 40 fixtures, got \(shots.count)")
 var placeVectors = places.map { _ in randomUnit(dim) }
 var momentVectors: [String: [Float]] = [:]
 // Two poses on the same lake backdrop share a background: small moment spread.
-let spread: [String: Float] = ["lakeMeA": 0.35, "lakeMeB": 0.35]
+let spread: [String: Float] = ["lakeMeA": 0.5, "lakeMeB": 0.5]
 
 // MARK: Output
 let outDir = URL(fileURLWithPath: CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "Fixtures")

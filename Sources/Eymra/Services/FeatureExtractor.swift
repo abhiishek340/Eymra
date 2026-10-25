@@ -22,13 +22,28 @@ nonisolated struct FeatureExtractor: FeatureExtracting {
 
     func analyse(_ image: CGImage, photoID: String) async throws -> FeatureRecord {
         let handler = ImageRequestHandler(image, orientation: .up)
-        // Core pack: if any of these throws, the photo is excluded with "Could not analyse".
-        let (print, faces, humans, saliency, labels) = try await handler.perform(
-            GenerateImageFeaturePrintRequest(),
-            DetectFaceRectanglesRequest(),
-            DetectHumanRectanglesRequest(),
-            GenerateAttentionBasedSaliencyImageRequest(),
-            ClassifyImageRequest())
+        // Core pack: one call so the image is prepared once.
+        let print: FeaturePrintObservation?
+        let faces: [FaceObservation], humans: [HumanObservation], labels: [ClassificationObservation]
+        let saliency: SaliencyImageObservation?
+        do {
+            (print, faces, humans, saliency, labels) = try await handler.perform(
+                GenerateImageFeaturePrintRequest(),
+                DetectFaceRectanglesRequest(),
+                DetectHumanRectanglesRequest(),
+                GenerateAttentionBasedSaliencyImageRequest(),
+                ClassifyImageRequest())
+        } catch {
+            // A pack throws as a whole. Where one request cannot build an inference context (seen on the
+            // Simulator), retry each on its own so a failure costs only that signal; a missing feature print
+            // falls back to thumbnail similarity in clustering.
+            Self.log.info("Core pack failed, retrying requests singly: \(String(describing: error), privacy: .public)")
+            print = try? await handler.perform(GenerateImageFeaturePrintRequest())
+            faces = (try? await handler.perform(DetectFaceRectanglesRequest())) ?? []
+            humans = (try? await handler.perform(DetectHumanRectanglesRequest())) ?? []
+            saliency = try? await handler.perform(GenerateAttentionBasedSaliencyImageRequest())
+            labels = (try? await handler.perform(ClassifyImageRequest())) ?? []
+        }
         // Optional requests run on their own so a failure costs only that signal.
         let aesthetics = try? await handler.perform(CalculateImageAestheticsScoresRequest())
         let horizon = (try? await handler.perform(DetectHorizonRequest())) ?? nil
@@ -51,7 +66,7 @@ nonisolated struct FeatureExtractor: FeatureExtracting {
                                eyesClosed: overlaps ? (match?.eyesClosed ?? false) : false,
                                smiling: overlaps ? (match?.smiling ?? false) : false)
         }
-        let salient = saliency.salientObjects.map { Self.upperLeft($0.boundingBox.cgRect) }
+        let salient = (saliency?.salientObjects ?? []).map { Self.upperLeft($0.boundingBox.cgRect) }
         let saliencyBox = salient.dropFirst().reduce(salient.first) { $0?.union($1) }
         let topLabels = labels
             .filter { $0.confidence > Tuning.labelMinConfidence }
@@ -62,7 +77,7 @@ nonisolated struct FeatureExtractor: FeatureExtracting {
         guard let stats = ImageStats.compute(image) else { throw PhotoSourceError.decodeFailed }
         return FeatureRecord(
             photoID: photoID, schemaVersion: FeatureSchema.version,
-            featurePrint: Self.floats(print), featurePrintRevision: featurePrintRevision,
+            featurePrint: print.map(Self.floats) ?? [], featurePrintRevision: featurePrintRevision,
             aestheticScore: aesthetics?.overallScore, isUtility: aesthetics?.isUtility ?? false,
             faces: faceFeatures, humanBoxes: humans.map { Self.upperLeft($0.boundingBox.cgRect) },
             saliencyBox: saliencyBox, labels: Array(topLabels),
