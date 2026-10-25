@@ -28,3 +28,8 @@ for rt,devs in json.load(sys.stdin)['devices'].items():
     if d['name']==name: print(d['udid']); sys.exit()
 " "$SIM_NAME"
 }
+
+# UDID of the first connected physical iPhone, empty if none.
+device_udid() {
+  xcrun devicectl list devices 2>/dev/null | awk '/physical/ && /connected/ { for (i = 1; i <= NF; i++) if ($i ~ /^[0-9A-F]{8}-[0-9A-F]{16}$/) { print $i; exit } }'
+}

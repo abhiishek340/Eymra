@@ -1,6 +1,105 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "%@" : {
+
+    },
+    "%@ · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "%@ keepers" : {
+
+    },
+    "%@ photos are in iCloud and weren't downloaded" : {
+
+    },
+    "%@ px" : {
+
+    },
+    "AI Judge" : {
+
+    },
+    "Allow photo access" : {
+
+    },
+    "Balanced" : {
+
+    },
+    "Best of %@ near-identical shots" : {
+
+    },
+    "Cancel" : {
+
+    },
+    "Counting photos…" : {
+
+    },
+    "Crops favour %@. Up to %@ photos." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Crops favour %1$@. Up to %2$@ photos."
+          }
+        }
+      }
+    },
+    "Data" : {
+
+    },
+    "Everything else (%@)" : {
+
+    },
+    "Eymra" : {
+
+    },
+    "Eymra has no account, no server and no analytics. Analysis results are stored only on this iPhone." : {
+
+    },
+    "From %@ photos · %@ places · %@ moments" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "From %1$@ photos · %2$@ places · %3$@ moments"
+          }
+        }
+      }
+    },
+    "iCloud Photos" : {
+
+    },
+    "More of me" : {
+
+    },
+    "More scenery" : {
+
+    },
+    "Photo access is off. Turn it on in Settings to continue." : {
+
+    },
+    "Pick the photos worth posting from a trip or a night out: one per moment, no repeats, real variety." : {
+
+    },
+    "Posting to" : {
+
+    },
+    "When" : {
+
+    },
+    "When on, 30–80 shortlisted photos are shrunk, stripped of location and all other metadata, and sent to Anthropic with your own key for scores and reasons. Costs per 60-photo run are estimates. When off, offline, or on any error, picks come from this iPhone only." : {
+
+    },
+    "Why not?" : {
+
+    }
   },
   "version" : "1.0"
 }

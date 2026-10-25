@@ -41,6 +41,7 @@ targets:
         PHPhotoLibraryPreventAutomaticLimitedAccessAlert: true
         LSApplicationQueriesSchemes: [instagram, instagram-stories, tiktok, snssdk1233, fb, twitter]
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UIRequiresFullScreen: true
         UILaunchScreen: {}
         FacebookAppID: $(FACEBOOK_APP_ID)
     scheme:

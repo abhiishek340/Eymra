@@ -45,3 +45,8 @@ Each entry: what the spec said, what was done, why.
 ## Vision on the Simulator
 - Spec: if the packed core Vision request throws, exclude the photo as *Could not analyse*. On the iOS 27 Simulator the pack throws `internalError("Could not create inference context")` for every photo, which would exclude everything. Now a failed pack retries each core request on its own (`try?`); only a decode or image-statistics failure excludes the photo. A missing feature print falls back to the spec's thumb32 RMS rule in clustering, and same-background checks are skipped for that photo.
 - Tests: `-collect-test-diagnostics never` in `scripts/test.sh`, otherwise any failure triggers a 10-minute `simctl diagnose`.
+
+## Device
+- Signing uses a free Personal Team set in `Config/Secrets.xcconfig` (git-ignored). First device: an iPhone 17 Pro on iOS 26.7.1.
+- `UIRequiresFullScreen = YES` added: portrait-only apps must declare it, or Xcode warns that all orientations must be supported.
+- Device scripts locate the phone by `devicectl` "physical" rows (the Simulator also shows as "connected") and build for its exact ID so a free team can create the provisioning profile.
