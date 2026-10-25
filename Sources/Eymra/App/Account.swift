@@ -92,13 +92,19 @@ final class Account {
 
     // MARK: Face
 
-    func saveFace(crops: [CGImage], prints: [[Float]]) {
+    /// Saves the face setup. Signatures that don't agree with the rest are dropped (with their crops).
+    /// Returns how many were kept.
+    @discardableResult
+    func saveFace(crops: [CGImage], prints: [[Float]]) -> Int {
+        let kept = Identity.consistentReferences(prints)
+        let keptCrops = zip(crops, prints).filter { pair in kept.contains(pair.1) }.map(\.0)
         do {
-            try FaceReferenceStore.save(crops: crops, prints: prints)
+            try FaceReferenceStore.save(crops: keptCrops.isEmpty ? crops : keptCrops, prints: kept)
         } catch {
             Self.log.error("Saving face failed: \(error.localizedDescription, privacy: .public)")
         }
         reloadFace()
+        return kept.count
     }
 
     func removeFace() {

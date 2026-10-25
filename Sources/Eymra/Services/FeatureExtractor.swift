@@ -58,7 +58,7 @@ nonisolated struct FeatureExtractor: FeatureExtracting {
         }
         let expressions = faces.isEmpty ? [] : Self.expressions(in: image)
 
-        let facePrints = await FaceEmbedder.prints(for: faces.map { Self.upperLeft($0.boundingBox.cgRect) }, in: image)
+        let facePrints = await FaceEmbedder.signatures(for: faces, in: image)
         let faceFeatures: [FaceFeature] = faces.enumerated().map { i, face in
             let box = Self.upperLeft(face.boundingBox.cgRect)
             let match = expressions.max { $0.box.intersectionArea(box) < $1.box.intersectionArea(box) }

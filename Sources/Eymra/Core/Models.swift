@@ -175,7 +175,7 @@ nonisolated struct FaceFeature: Codable, Sendable, Hashable {
     var captureQuality: Float?
     var eyesClosed: Bool
     var smiling: Bool
-    /// Feature print of the face crop, used to recognise the user. Empty when unavailable.
+    /// Face signature (128-d unit vector from the face model), used to recognise the user. Empty when unreadable.
     var print: [Float] = []
 
     init(box: NormRect, captureQuality: Float?, eyesClosed: Bool, smiling: Bool, print: [Float] = []) {
@@ -198,7 +198,7 @@ nonisolated struct FaceFeature: Codable, Sendable, Hashable {
 
 nonisolated enum FeatureSchema {
     /// Bump whenever stage 2 changes what it stores.
-    static let version = 2
+    static let version = 3
 }
 
 nonisolated struct FeatureRecord: Codable, Sendable, Hashable {

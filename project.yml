@@ -53,6 +53,11 @@ targets:
     platform: iOS
     sources:
       - Tests/EymraTests
+      # Real-face pairs for on-device recognition checks; local only (git-ignored), optional.
+      - path: Tests/LocalFaces
+        type: folder
+        buildPhase: resources
+        optional: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.eymra.EymraTests

@@ -15,7 +15,6 @@ nonisolated enum Scoring {
                       groups: [(sceneID: String, members: [String])],
                       primaryRatio: AspectRatio,
                       me: MeReference? = nil) -> Output {
-        let meThreshold = me.map(Identity.threshold(for:))
         let ids = groups.flatMap(\.members).filter { features[$0] != nil && photos[$0] != nil }
         let groupOf: [String: Int] = Dictionary(uniqueKeysWithValues: groups.enumerated().flatMap { gi, g in
             g.members.map { ($0, gi) }
@@ -50,8 +49,8 @@ nonisolated enum Scoring {
             // Who is in it: the user's face index, or nil; withMe is nil when we can't tell.
             var meIndex: Int?
             var withMe: Bool?
-            if let me, let meThreshold, !f.faces.isEmpty, Identity.canTell(f.faces, reference: me) {
-                meIndex = Identity.meFace(in: f.faces, reference: me, threshold: meThreshold)
+            if let me, !f.faces.isEmpty, Identity.canTell(f.faces, reference: me) {
+                meIndex = Identity.meFace(in: f.faces, reference: me)
                 withMe = meIndex != nil
             }
             let people = f.faces.isEmpty ? nil : peopleScore(f.faces, meIndex: meIndex)

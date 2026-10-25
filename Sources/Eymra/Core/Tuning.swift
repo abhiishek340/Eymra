@@ -45,16 +45,17 @@ nonisolated enum Tuning {
     static let meHumanArea: Float = 0.25
     static let detailSaliencyArea: Float = 0.25
 
-    // MARK: Recognising the user (needsCalibration on device)
-    /// Faces whose crops get a feature print, largest first.
+    // MARK: Recognising the user (SFace signatures, cosine similarity)
+    /// Faces per photo that get a signature, largest first.
     static let maxFacePrints = 6
     static let faceCropMargin: Float = 0.25
-    /// Match threshold = mean distance between the user's own reference prints × this factor, clamped.
-    static let meSpreadFactor: Float = 1.25
-    static let meDistanceMin: Float = 0.45
-    static let meDistanceMax: Float = 0.95
-    /// Used when there is only one reference print.
-    static let meDistanceDefault: Float = 0.7
+    /// Faces narrower than this (pixels, in the 1024 px rendition) are too small to recognise reliably.
+    static let minFacePixels: Double = 40
+    /// Same person at or above this cosine. LFW with 5-point alignment: different people's 99th percentile is 0.30,
+    /// the published threshold 0.363; 0.40 trades a little recall for no false matches.
+    static let meSimilarity: Float = 0.40
+    /// During face setup, angles that don't look like the straight-on capture (below this) are dropped.
+    static let enrolConsistency: Float = 0.35
 
     // MARK: Personal preferences
     static let meShareMostlyMe: Float = 0.6

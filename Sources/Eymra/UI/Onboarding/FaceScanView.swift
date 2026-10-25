@@ -34,7 +34,7 @@ final class FaceScanModel {
     let scanner = FaceScanner()
     var step: ScanStep = .straight
     var pose: FacePose?
-    var captured: [ScanStep: (crop: CGImage, print: [Float])] = [:]
+    var captured: [ScanStep: (crop: CGImage, signature: [Float])] = [:]
     var finished = false
     var cameraDenied = false
     var holdProgress: Double = 0
@@ -211,7 +211,7 @@ struct FaceScanView: View {
                 .multilineTextAlignment(.center).foregroundStyle(Theme.inkSoft)
             Button("Continue") {
                 let faces = ScanStep.allCases.compactMap { model.captured[$0] }
-                app.account.saveFace(crops: faces.map(\.crop), prints: faces.map(\.print))
+                app.account.saveFace(crops: faces.map(\.crop), prints: faces.map(\.signature))
                 done()
             }
             .buttonStyle(.glassPrimary)
@@ -249,7 +249,7 @@ struct FaceUploadView: View {
     let done: () -> Void
     let cancel: () -> Void
     @State private var selection: [PhotosPickerItem] = []
-    @State private var faces: [(crop: CGImage, print: [Float])] = []
+    @State private var faces: [(crop: CGImage, signature: [Float])] = []
     @State private var working = false
     @State private var message: String?
 
@@ -287,7 +287,7 @@ struct FaceUploadView: View {
             .disabled(working)
             if !faces.isEmpty {
                 Button("Use these") {
-                    app.account.saveFace(crops: faces.map(\.crop), prints: faces.map(\.print))
+                    app.account.saveFace(crops: faces.map(\.crop), prints: faces.map(\.signature))
                     done()
                 }
                 .buttonStyle(.glassPrimary)
@@ -300,7 +300,7 @@ struct FaceUploadView: View {
     private func load(_ items: [PhotosPickerItem]) async {
         working = true
         defer { working = false }
-        var found: [(crop: CGImage, print: [Float])] = []
+        var found: [(crop: CGImage, signature: [Float])] = []
         for item in items {
             guard let data = try? await item.loadTransferable(type: Data.self),
                   let image = UIImage(data: data),
