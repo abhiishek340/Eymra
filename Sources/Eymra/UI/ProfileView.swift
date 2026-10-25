@@ -48,6 +48,7 @@ struct ProfileView: View {
     }
 
     private var profileHeader: some View {
+        VStack(alignment: .leading, spacing: 14) {
         HStack(spacing: 16) {
             Group {
                 if let url = app.account.profile?.pictureURL {
@@ -70,6 +71,24 @@ struct ProfileView: View {
             Spacer()
         }
         .padding(.top, 20)
+        if app.account.profile?.provider == .local && GoogleSignIn.isConfigured {
+            // Upgrade a name-only profile; answers and face setup stay as they are.
+            Button {
+                Task { await app.account.signInWithGoogle() }
+            } label: {
+                HStack(spacing: 10) {
+                    GoogleMark()
+                    Text(app.account.isSigningIn ? "Signing in…" : "Sign in with Google")
+                }
+            }
+            .buttonStyle(.glassPrimary)
+            .disabled(app.account.isSigningIn)
+            .accessibilityIdentifier("profileGoogleSignIn")
+            if let error = app.account.signInError {
+                Text(error).font(.footnote).foregroundStyle(.red.opacity(0.8))
+            }
+        }
+        }
     }
 
     private var initials: some View {
