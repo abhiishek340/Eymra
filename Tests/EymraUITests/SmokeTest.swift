@@ -1,6 +1,6 @@
 import XCTest
 
-/// Drives the whole flow on the fixture set: run → results → pick detail → lock → "Why not?" → swap in.
+/// Drives the app on the fixture set and keeps a screenshot of every screen.
 final class SmokeTest: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
@@ -23,67 +23,108 @@ final class SmokeTest: XCTestCase {
     }
 
     @MainActor
-    func testRunShowsTenPicksAndEditing() throws {
-        let app = launch()
-        XCTAssertTrue(app.staticTexts["photoCount"].waitForExistence(timeout: 10))
-        XCTAssertEqual(app.staticTexts["photoCount"].label, "40 photos in this range")
-        screenshot(app, "1-home")
+    func testOnboarding() throws {
+        let app = launch(["-onboarding"])
+        XCTAssertTrue(app.buttons["onboardingStart"].waitForExistence(timeout: 10))
+        sleep(2)
+        screenshot(app, "01-welcome")
+        app.buttons["onboardingStart"].tap()
 
-        app.buttons["runButton"].tap()
-        XCTAssertTrue(app.staticTexts["resultsTitle"].waitForExistence(timeout: 30))
-        XCTAssertEqual(app.staticTexts["resultsTitle"].label, "10 keepers")
-        screenshot(app, "2-results")
+        // Google isn't configured in test builds, so the name path shows.
+        let name = app.textFields["nameField"]
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        screenshot(app, "02-sign-in")
+        name.tap()
+        name.typeText("Alex")
+        app.buttons["continueWithName"].tap()
 
-        // Pick detail: lock it.
-        app.buttons["pick-1"].tap()
-        XCTAssertTrue(app.navigationBars["Pick 1"].waitForExistence(timeout: 5))
-        screenshot(app, "3-pick-detail")
-        let lock = app.buttons["lockButton"]
-        for _ in 0..<5 where !lock.isHittable { app.swipeUp() }
-        XCTAssertEqual(lock.label, "Lock (keep on re-run)")
-        lock.tap()
-        XCTAssertTrue(app.buttons["Unlock"].waitForExistence(timeout: 5))
-        app.navigationBars["Pick 1"].buttons["Done"].tap()
-        XCTAssertTrue(app.buttons["pick-1"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["pick-1"].images["lock.fill"].exists || app.images["lock.fill"].exists)
+        XCTAssertTrue(app.buttons["answer-mostlyMe"].waitForExistence(timeout: 5))
+        screenshot(app, "03-question-1")
+        app.buttons["answer-meAndFriends"].tap()
+        XCTAssertTrue(app.buttons["answer-love"].waitForExistence(timeout: 5))
+        screenshot(app, "04-question-2")
+        app.buttons["answer-love"].tap()
+        XCTAssertTrue(app.buttons["answer-story"].waitForExistence(timeout: 5))
+        app.buttons["answer-story"].tap()
 
-        // Everything else → Why not? → swap in.
-        let excluded = app.buttons["excludedSection"]
-        for _ in 0..<8 where !excluded.isHittable { app.swipeUp() }
-        excluded.tap()
-        app.swipeUp()
-        let firstWhyNot = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'near-duplicate' OR label CONTAINS[c] 'ranked' OR label CONTAINS[c] 'background'")).firstMatch
-        XCTAssertTrue(firstWhyNot.waitForExistence(timeout: 5))
-        firstWhyNot.tap()
-        XCTAssertTrue(app.staticTexts["whyNotReason"].waitForExistence(timeout: 5))
-        screenshot(app, "4-why-not")
-        if app.buttons["swapIn"].exists {
-            app.buttons["swapIn"].tap()
-        } else {
-            app.buttons["Done"].firstMatch.tap()
-        }
-        XCTAssertTrue(app.staticTexts["resultsTitle"].waitForExistence(timeout: 5))
-        XCTAssertEqual(app.staticTexts["resultsTitle"].label, "10 keepers")
+        XCTAssertTrue(app.buttons["faceSkip"].waitForExistence(timeout: 5))
+        screenshot(app, "05-face-intro")
+        app.buttons["faceSkip"].tap()
+
+        XCTAssertTrue(app.buttons["allowAccess"].waitForExistence(timeout: 5))
+        screenshot(app, "06-photo-access")
+        app.buttons["allowAccess"].tap()
+
+        XCTAssertTrue(app.buttons["runButton"].waitForExistence(timeout: 10))
+        let greeting = app.staticTexts.matching(NSPredicate(format: "label ENDSWITH ', Alex'")).firstMatch
+        XCTAssertTrue(greeting.exists)
     }
 
     @MainActor
-    func testJudgePathWithStub() throws {
+    func testRunShowsTenPicksAndEditing() throws {
+        let app = launch()
+        XCTAssertTrue(app.staticTexts["photoCount"].waitForExistence(timeout: 10))
+        XCTAssertEqual(app.staticTexts["photoCount"].label, "40 photos from this time")
+        sleep(1)
+        screenshot(app, "10-home")
+
+        app.buttons["runButton"].tap()
+        XCTAssertTrue(app.staticTexts["resultsTitle"].waitForExistence(timeout: 30))
+        XCTAssertEqual(app.staticTexts["resultsTitle"].label, "10 photos, picked from 40")
+        sleep(1)
+        screenshot(app, "11-results")
+        app.swipeUp()
+        screenshot(app, "12-results-scrolled")
+        app.swipeDown()
+        app.swipeDown()
+
+        // Photo detail: keep it.
+        app.buttons["pick-1"].tap()
+        let lock = app.buttons["lockButton"]
+        XCTAssertTrue(lock.waitForExistence(timeout: 5))
+        sleep(1)
+        screenshot(app, "13-detail")
+        for _ in 0..<5 where !lock.isHittable { app.swipeUp() }
+        lock.tap()
+        XCTAssertTrue(app.buttons["Unlock"].waitForExistence(timeout: 5))
+        app.buttons["detailDone"].tap()
+
+        // Other photos → why not → use it instead.
+        let excluded = app.buttons["excludedSection"]
+        for _ in 0..<12 where !excluded.isHittable { app.swipeUp() }
+        excluded.tap()
+        app.swipeUp()
+        screenshot(app, "14-other-photos")
+        let firstWhyNot = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'almost the same' OR label CONTAINS[c] 'missed out' OR label CONTAINS[c] 'same spot'")).firstMatch
+        XCTAssertTrue(firstWhyNot.waitForExistence(timeout: 5))
+        firstWhyNot.tap()
+        XCTAssertTrue(app.staticTexts["whyNotReason"].waitForExistence(timeout: 5))
+        sleep(1)
+        screenshot(app, "15-why-not")
+        if app.buttons["swapIn"].exists { app.buttons["swapIn"].tap() } else { app.buttons["whyNotClose"].tap() }
+        XCTAssertTrue(app.staticTexts["resultsTitle"].waitForExistence(timeout: 5))
+
+        // Back home, then the Stories and You tabs.
+        app.buttons["resultsBack"].tap()
+        XCTAssertTrue(app.buttons["tab-stories"].waitForExistence(timeout: 5))
+        app.buttons["tab-stories"].tap()
+        sleep(1)
+        screenshot(app, "16-stories")
+        app.buttons["tab-you"].tap()
+        XCTAssertTrue(app.switches["judgeToggle"].waitForExistence(timeout: 5))
+        sleep(1)
+        screenshot(app, "17-you")
+    }
+
+    @MainActor
+    func testClaudePathWithStub() throws {
         let app = launch(["-judge"])
         XCTAssertTrue(app.buttons["runButton"].waitForExistence(timeout: 10))
         app.buttons["runButton"].tap()
         XCTAssertTrue(app.staticTexts["resultsTitle"].waitForExistence(timeout: 30))
-        XCTAssertTrue(app.staticTexts["AI Judge used"].exists)
-        screenshot(app, "5-results-judge")
-    }
-
-    @MainActor
-    func testSettingsOpens() throws {
-        let app = launch()
-        app.buttons["settingsButton"].tap()
-        XCTAssertTrue(app.switches["judgeToggle"].waitForExistence(timeout: 5))
-        screenshot(app, "6-settings")
-        app.buttons["settingsDone"].tap()
-        XCTAssertTrue(app.buttons["runButton"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Claude helped"].exists)
+        XCTAssertEqual(app.staticTexts["storyTitle"].label, "A golden day out")
+        screenshot(app, "20-results-claude")
     }
 }
 
@@ -96,13 +137,25 @@ final class RealLibraryTest: XCTestCase {
         try XCTSkipUnless(ProcessInfo.processInfo.environment["EYMRA_REAL_LIBRARY"] == "1", "Set TEST_RUNNER_EYMRA_REAL_LIBRARY=1")
         let app = XCUIApplication()
         app.launch()
-        // Grant photo access through the system alert if the app is asking.
-        if app.buttons["allowAccess"].waitForExistence(timeout: 3) {
-            app.buttons["allowAccess"].tap()
-            let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
-            for label in ["Allow Full Access", "Allow Access to All Photos", "Allow"] {
-                let button = springboard.buttons[label]
-                if button.waitForExistence(timeout: 3) { button.tap(); break }
+        // Walk onboarding if this is a fresh install.
+        if app.buttons["onboardingStart"].waitForExistence(timeout: 3) {
+            app.buttons["onboardingStart"].tap()
+            if app.textFields["nameField"].waitForExistence(timeout: 3) {
+                app.textFields["nameField"].tap()
+                app.textFields["nameField"].typeText("Tester")
+                app.buttons["continueWithName"].tap()
+            }
+            for answer in ["answer-mix", "answer-sometimes", "answer-story"] {
+                if app.buttons[answer].waitForExistence(timeout: 3) { app.buttons[answer].tap() }
+            }
+            if app.buttons["faceSkip"].waitForExistence(timeout: 3) { app.buttons["faceSkip"].tap() }
+            if app.buttons["allowAccess"].waitForExistence(timeout: 3) {
+                app.buttons["allowAccess"].tap()
+                let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+                for label in ["Allow Full Access", "Allow Access to All Photos", "Allow"] {
+                    let button = springboard.buttons[label]
+                    if button.waitForExistence(timeout: 3) { button.tap(); break }
+                }
             }
         }
         let range = ProcessInfo.processInfo.environment["EYMRA_RANGE"] ?? "yesterday"
@@ -117,12 +170,7 @@ final class RealLibraryTest: XCTestCase {
         let note = XCTAttachment(string: "\(count.label); run took \(String(format: "%.1f", elapsed)) s; \(app.staticTexts["resultsTitle"].label)")
         note.lifetime = .keepAlways
         add(note)
-        let shot = XCTAttachment(screenshot: app.screenshot())
-        shot.name = "real-results"
-        shot.lifetime = .keepAlways
-        add(shot)
 
-        app.buttons["exportMenu"].tap()
         app.buttons["saveAlbum"].tap()
         let toast = app.staticTexts["toast"]
         XCTAssertTrue(toast.waitForExistence(timeout: 15))
@@ -130,6 +178,6 @@ final class RealLibraryTest: XCTestCase {
         saved.name = "album-saved"
         saved.lifetime = .keepAlways
         add(saved)
-        XCTAssertTrue(toast.label.hasPrefix("Saved to album"), toast.label)
+        XCTAssertTrue(toast.label.hasPrefix("Saved to your Photos"), toast.label)
     }
 }

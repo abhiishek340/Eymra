@@ -8,6 +8,8 @@ actor CurationPipeline {
         var judgeLongEdge = 756
         /// Photo IDs locked by the user in the run being re-run; they stay in the set.
         var locked: [String] = []
+        /// The user's face prints, so photos with them in can be told apart from photos of friends.
+        var me: MeReference?
     }
 
     private static let log = Logger(subsystem: "app.eymra", category: "pipeline")
@@ -81,7 +83,18 @@ actor CurationPipeline {
         // Stage 5 – scoring and winners.
         report(.scoring, 0, analysed.count)
         timer.begin(.scoring)
-        let scored = Scoring.score(photos: photoByID, features: features, scenes: scenes, groups: groups, primaryRatio: preset.primaryRatio)
+        var scored = Scoring.score(photos: photoByID, features: features, scenes: scenes, groups: groups,
+                                   primaryRatio: preset.primaryRatio, me: options.me)
+        if options.me != nil {
+            if scored.scores.values.contains(where: { $0.withMe == true }) {
+                stats.recognisedMe = true
+            } else {
+                // Set up but never found: treat everyone the same rather than calling every face "friends".
+                scored = Scoring.score(photos: photoByID, features: features, scenes: scenes, groups: groups,
+                                       primaryRatio: preset.primaryRatio, me: nil)
+                stats.meNote = String(localized: "We couldn't spot you in these photos, so we treated everyone the same.")
+            }
+        }
         timer.end()
         report(.scoring, analysed.count, analysed.count)
         var scores = scored.scores
@@ -98,6 +111,7 @@ actor CurationPipeline {
 
         // Stage 6 – AI Judge (optional; any failure keeps the on-device result).
         var verdicts: [String: JudgeVerdict] = [:]
+        var storyTitle: String?
         if config.judgeEnabled {
             if let judge {
                 report(.judge, 0, 0)
@@ -113,7 +127,14 @@ actor CurationPipeline {
                     for (clusterID, winner) in out.newWinners where !locked.contains(where: { clusters.first { $0.id == clusterID }?.memberIDs.contains($0) ?? false }) {
                         if let i = clusters.firstIndex(where: { $0.id == clusterID }) { Self.promote(winner, in: &clusters[i]) }
                     }
-                    for (id, v) in verdicts { scores[id]?.category = v.category }
+                    for (id, v) in verdicts {
+                        // Claude can't know who the user is; keep "friends" when we know the user isn't in it.
+                        let withMe = scores[id]?.withMe
+                        if withMe == false && v.category.isPeople { scores[id]?.category = .friends }
+                        else if withMe == true && v.category == .group { scores[id]?.category = .group }
+                        else { scores[id]?.category = v.category }
+                    }
+                    if let title = out.title, !title.isEmpty { storyTitle = title }
                     stats.judgeUsed = !verdicts.isEmpty
                     stats.judgeImagesSent = out.imagesSent
                 } catch is CancellationError {
@@ -130,24 +151,39 @@ actor CurationPipeline {
 
         // Stage 7 – diversity-aware selection.
         report(.selection, 0, 0)
+        let sceneSizes = Dictionary(uniqueKeysWithValues: scenes.map { ($0.id, Float($0.photoIDs.count)) })
+        let biggestScene = sceneSizes.values.max() ?? 1
         let candidates: [Selection.Candidate] = clusters.compactMap { c in
             guard let s = scores[c.winnerID], let p = photoByID[c.winnerID] else { return nil }
             let q = s.quality
             let r = verdicts[c.winnerID].map { (1 - Tuning.judgeWeight) * q + Tuning.judgeWeight * $0.score } ?? q
             return Selection.Candidate(photoID: c.winnerID, sceneID: c.sceneID, clusterID: c.id, relevance: r,
                                        category: s.category, featurePrint: features[c.winnerID]?.featurePrint ?? [],
-                                       date: p.creationDate)
+                                       date: p.creationDate, withMe: s.withMe,
+                                       sceneWeight: ((sceneSizes[c.sceneID] ?? 1) / biggestScene).squareRoot())
         }.sorted { $0.relevance != $1.relevance ? $0.relevance > $1.relevance : $0.photoID < $1.photoID }
         let count = min(config.count, preset.maxCount)
         timer.begin(.selection)
-        let selection = Selection.select(candidates: candidates, count: count, mix: config.mix, locked: locked)
+        let selection = Selection.select(candidates: candidates, count: count, mix: config.mix, locked: locked,
+                                         prefs: config.prefs)
         timer.end()
 
         // Stage 8 – ordering, reasons, exclusion tags.
         let byID = Dictionary(uniqueKeysWithValues: candidates.map { ($0.photoID, $0) })
-        let ordered = Ordering.order(selection.selected.compactMap { byID[$0] }.map {
-            Ordering.Item(photoID: $0.photoID, relevance: $0.relevance, category: $0.category, date: $0.date)
-        }, rule: preset.ordering)
+        let items = selection.selected.compactMap { byID[$0] }.map {
+            Ordering.Item(photoID: $0.photoID, relevance: $0.relevance, category: $0.category, date: $0.date,
+                          sceneID: $0.sceneID, withMe: $0.withMe)
+        }
+        var ordered: [String]
+        var roles: [String: StoryRole] = [:]
+        if preset.ordering == .coverThenStory && config.prefs.story == .story {
+            let story = Ordering.story(items, lastSceneID: scenes.last?.id)
+            ordered = story.order
+            if let o = story.opener { roles[o] = .opener }
+            if let c = story.closer { roles[c] = .closer }
+        } else {
+            ordered = Ordering.order(items, rule: preset.ordering == .coverThenStory ? .bestFirst : preset.ordering)
+        }
         let sceneLabel = Dictionary(uniqueKeysWithValues: scenes.map { ($0.id, $0.label) })
         let pickedCategories = ordered.compactMap { scores[$0]?.category }
         var picks: [Pick] = []
@@ -157,7 +193,7 @@ actor CurationPipeline {
                                                    categoryCountInSet: pickedCategories.filter { $0 == s.category }.count,
                                                    judge: verdicts[id]))
             picks.append(Pick(photoID: id, position: i + 1, reason: reason, category: s.category, clusterSize: cluster.size,
-                              score: s, judge: verdicts[id], isLocked: locked.contains(id)))
+                              score: s, judge: verdicts[id], isLocked: locked.contains(id), role: roles[id]))
         }
         let position = Dictionary(uniqueKeysWithValues: ordered.enumerated().map { ($1, $0 + 1) })
         for cluster in clusters {
@@ -179,7 +215,9 @@ actor CurationPipeline {
 
         let result = RunResult(id: UUID(), createdAt: Date(), config: config, picks: picks,
                                candidates: candidates.map(\.photoID), scenes: scenes, clusters: clusters,
-                               excluded: excluded, scores: scores, stats: stats, setRatio: preset.primaryRatio)
+                               excluded: excluded, scores: scores, stats: stats, setRatio: preset.primaryRatio,
+                               title: storyTitle ?? Explanations.storyTitle(range: Self.span(of: scenes) ?? config.range,
+                                                                            sceneCount: scenes.count))
         await store.saveRun(result)
         Self.log.info("Run: \(stats.photoCount) photos, \(scenes.count) scenes, \(clusters.count) clusters, \(picks.count) picks")
         return result
@@ -246,6 +284,12 @@ actor CurationPipeline {
     }
 
     // MARK: Helpers
+
+    /// When the photos were actually taken (first to last), for the story title.
+    static func span(of scenes: [Scene]) -> DateInterval? {
+        guard let start = scenes.map(\.start).min(), let end = scenes.map(\.end).max(), end >= start else { return nil }
+        return DateInterval(start: start, end: end)
+    }
 
     static func promote(_ id: String, in cluster: inout Cluster) {
         let old = cluster.winnerID

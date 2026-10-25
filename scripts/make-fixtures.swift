@@ -45,6 +45,7 @@ struct Shot {
     var favorite = false
     var landscape = false
     var boost: Float = 0       // nudges aesthetics/capture quality up or down inside a cluster
+    var notMe = false          // a friend on their own: the user is not in this shot
 }
 struct Place { var name: String; var lat: Double; var lon: Double; var startHour: Int; var startMinute: Int
     var sky: (CGFloat, CGFloat, CGFloat); var ground: (CGFloat, CGFloat, CGFloat) }
@@ -86,7 +87,7 @@ shots += [Shot(scene: 3, moment: "church", kind: .view, minute: 0, boost: 0.1),
           Shot(scene: 3, moment: "square", kind: .view, minute: 6, landscape: true),
           Shot(scene: 3, moment: "gelato", kind: .food, minute: 10, boost: 0.1),
           Shot(scene: 3, moment: "gelato", kind: .food, minute: 10.2),
-          Shot(scene: 3, moment: "townMe", kind: .meWithView, minute: 15, faces: 1),
+          Shot(scene: 3, moment: "townFriend", kind: .meWithView, minute: 15, faces: 1, notMe: true),
           Shot(scene: 3, moment: "receipt", kind: .receipt, minute: 18)]
 // Scene 4 – sunset: a view series with a blown-out frame, a selfie pair, one too dark, a screenshot.
 shots += [Shot(scene: 4, moment: "sunsetView", kind: .view, minute: 0, landscape: true, boost: 0.2),
@@ -114,7 +115,7 @@ let exifFormatter = DateFormatter()
 exifFormatter.dateFormat = "yyyy:MM:dd HH:mm:ss"
 exifFormatter.timeZone = calendar.timeZone
 
-struct Face: Codable { var box: Box; var captureQuality: Float?; var eyesClosed: Bool; var smiling: Bool }
+struct Face: Codable { var box: Box; var captureQuality: Float?; var eyesClosed: Bool; var smiling: Bool; var print: [Float] }
 struct Box: Codable { var x: Float; var y: Float; var width: Float; var height: Float }
 struct Label: Codable { var identifier: String; var confidence: Float }
 struct Geo: Codable { var latitude: Double; var longitude: Double; var horizontalAccuracy: Double }
@@ -129,7 +130,13 @@ struct Feature: Codable {
     var labels: [Label]; var horizonDegrees: Float?; var sharpness: Float; var darkFraction: Float
     var brightFraction: Float; var meanLuma: Float; var thumb32: [UInt8]
 }
-struct Fixture: Codable { var photos: [Record]; var features: [Feature] }
+struct Reference: Codable { var prints: [[Float]] }
+struct Fixture: Codable { var photos: [Record]; var features: [Feature]; var meReference: Reference }
+
+// Face identities: the user, and a few friends. A face print is its identity plus small noise.
+let meFace = randomUnit(dim)
+let friendFaces = (0..<4).map { _ in randomUnit(dim) }
+func facePrint(_ identity: [Float]) -> [Float] { unit((0..<dim).map { identity[$0] + 0.04 * rng.gauss() }) }
 
 func draw(_ s: Shot, place: Place, momentSeed: Float, width: Int, height: Int) -> CGImage {
     let ctx = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
@@ -247,9 +254,11 @@ for (index, s) in shots.enumerated() {
     for f in 0..<s.faces {
         let size: Float = s.kind == .me ? 0.32 : (s.kind == .group ? 0.16 : 0.06)
         let x: Float = s.faces == 1 ? 0.4 : 0.1 + 0.6 * Float(f) / Float(max(1, s.faces - 1))
+        // In group shots the user is the first face; a "notMe" shot shows a friend only.
+        let identity = (f == 0 && !s.notMe) ? meFace : friendFaces[(f + (s.notMe ? 0 : 3)) % friendFaces.count]
         faces.append(Face(box: Box(x: x, y: 0.3, width: size, height: size * 0.75),
                           captureQuality: min(1, 0.55 + s.boost + 0.1 * rng.float()),
-                          eyesClosed: s.eyesClosed, smiling: s.boost > 0.12))
+                          eyesClosed: s.eyesClosed, smiling: s.boost > 0.12, print: facePrint(identity)))
     }
     var labels: [Label] = []
     var saliency: Box?
@@ -278,7 +287,7 @@ for (index, s) in shots.enumerated() {
                           isFavorite: s.favorite, pixelWidth: width, pixelHeight: height,
                           isScreenshot: s.kind == .screenshot, isAnimated: false, burstIdentifier: nil,
                           moment: s.moment, kind: s.kind.rawValue))
-    features.append(Feature(photoID: id, schemaVersion: 1, featurePrint: print, featurePrintRevision: 2,
+    features.append(Feature(photoID: id, schemaVersion: 2, featurePrint: print, featurePrintRevision: 2,
                             aestheticScore: aesthetic, isUtility: s.kind == .receipt, faces: faces,
                             humanBoxes: faces.map { Box(x: $0.box.x - 0.05, y: 0.25, width: $0.box.width + 0.1, height: 0.7) },
                             saliencyBox: saliency, labels: labels,
@@ -290,5 +299,6 @@ for (index, s) in shots.enumerated() {
 let encoder = JSONEncoder()
 encoder.dateEncodingStrategy = .iso8601
 encoder.outputFormatting = [.sortedKeys]
-try encoder.encode(Fixture(photos: records, features: features)).write(to: outDir.appendingPathComponent("features.json"))
+try encoder.encode(Fixture(photos: records, features: features,
+                           meReference: Reference(prints: (0..<5).map { _ in facePrint(meFace) }))).write(to: outDir.appendingPathComponent("features.json"))
 print("Wrote \(records.count) fixtures to \(outDir.path)")

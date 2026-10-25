@@ -67,6 +67,10 @@ struct JudgeParsingTests {
         #expect(content.last?["text"] as? String == "Go")
     }
 
+    @Test func titleParsingTrimsQuotes() throws {
+        #expect(try JudgeSchema.parseTitle(Data(#"{"title":"“Slow Sunday by the lake” "}"#.utf8)) == "Slow Sunday by the lake")
+    }
+
     @Test func missingKeyFailsWithoutNetwork() async {
         let judge = ClaudeJudge(model: "m", apiKey: "")
         await #expect(throws: JudgeError.missingKey) { try await judge.score([]) }

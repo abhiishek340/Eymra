@@ -36,8 +36,10 @@ targets:
       path: Sources/Eymra/Resources/Info.plist
       properties:
         CFBundleDisplayName: Eymra
-        NSPhotoLibraryUsageDescription: Eymra reads your photos on this phone to find the ones worth posting. Nothing is uploaded unless you turn on AI Judge.
+        NSPhotoLibraryUsageDescription: Eymra reads your photos on this phone to find the ones worth posting. Nothing is uploaded unless you turn on Claude's help.
         NSPhotoLibraryAddUsageDescription: Eymra saves your picks to an album.
+        NSCameraUsageDescription: Eymra uses the camera once, to learn what you look like so it can find you in your photos. It stays on your phone.
+        GoogleClientID: $(GOOGLE_CLIENT_ID)
         PHPhotoLibraryPreventAutomaticLimitedAccessAlert: true
         LSApplicationQueriesSchemes: [instagram, instagram-stories, tiktok, snssdk1233, fb, twitter]
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]

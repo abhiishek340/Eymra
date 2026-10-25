@@ -51,6 +51,7 @@ final class RunViewModel {
 
     init(app: AppModel) {
         self.app = app
+        mix = app.account.prefs.defaultMix
         let now = Date()
         preset = app.isUITesting ? .last3 : .today
         customEnd = now
@@ -96,9 +97,10 @@ final class RunViewModel {
     func run(locked: [String] = []) {
         task?.cancel()
         let config = RunConfig(range: range, platform: platform, count: count, mix: mix,
-                               judgeEnabled: app.settings.judgeEnabled)
+                               judgeEnabled: app.settings.judgeEnabled, prefs: app.account.prefs)
         let options = CurationPipeline.Options(allowNetwork: app.settings.allowNetworkNow,
-                                               judgeLongEdge: app.settings.judgeLongEdge, locked: locked)
+                                               judgeLongEdge: app.settings.judgeLongEdge, locked: locked,
+                                               me: app.account.meReference)
         let pipeline = app.makePipeline()
         phase = .running(PipelineProgress(stage: .ingest, completed: 0, total: 0))
         let (stream, continuation) = AsyncStream<PipelineProgress>.makeStream(bufferingPolicy: .bufferingNewest(1))
@@ -123,6 +125,12 @@ final class RunViewModel {
                 self.phase = .failed(String(localized: "Something went wrong: \(error.localizedDescription)"))
             }
         }
+    }
+
+    /// Opens a saved run from the Stories tab.
+    func open(_ run: RunResult) {
+        result = run
+        showResults = true
     }
 
     func cancel() {
@@ -189,7 +197,7 @@ final class RunViewModel {
         do {
             let title = AlbumExporter.albumTitle(range: r.config.range, platform: PlatformPreset.preset(r.config.platform))
             _ = try await AlbumExporter.save(photoIDs: r.picks.map(\.photoID), title: title)
-            toast = String(localized: "Saved to album “\(title)”")
+            toast = String(localized: "Saved to your Photos in “\(title)”")
         } catch {
             toast = String(localized: "Could not save the album")
         }
@@ -211,7 +219,7 @@ final class RunViewModel {
         do {
             let data = try await StoriesExporter.croppedJPEG(photoID: photoID, ratio: .vertical9x16, saliency: saliency, source: app.source)
             StoriesExporter.copyToPasteboard(data)
-            toast = String(localized: "Copied, cropped to 9:16 for Stories")
+            toast = String(localized: "Copied! Paste it into your Story")
         } catch {
             toast = String(localized: "Could not copy this photo")
         }

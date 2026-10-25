@@ -211,6 +211,13 @@ actor FeatureStore {
         return nil
     }
 
+    func recentRuns(limit: Int = 20) -> [RunResult] {
+        var descriptor = FetchDescriptor<SavedRun>(sortBy: [SortDescriptor(\.createdAt, order: .reverse)])
+        descriptor.fetchLimit = limit
+        let decoder = JSONDecoder()
+        return ((try? modelContext.fetch(descriptor)) ?? []).compactMap { try? decoder.decode(RunResult.self, from: $0.result) }
+    }
+
     func latestRun() -> RunResult? {
         var descriptor = FetchDescriptor<SavedRun>(sortBy: [SortDescriptor(\.createdAt, order: .reverse)])
         descriptor.fetchLimit = 1

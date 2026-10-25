@@ -15,6 +15,11 @@ nonisolated struct StubJudge: JudgeProvider {
         }
     }
 
+    func title(_ images: [JudgeImage]) async throws -> String {
+        if let failure { throw failure }
+        return "A golden day out"
+    }
+
     func bestOf(_ images: [JudgeImage]) async throws -> BestOfAnswer {
         if let failure { throw failure }
         guard let first = images.first else { throw JudgeError.badResponse("empty") }

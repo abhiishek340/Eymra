@@ -30,11 +30,14 @@ nonisolated enum CategoryRules {
     }
 
     /// Heuristic category, evaluated top to bottom, first match wins (spec §8).
-    static func category(for f: FeatureRecord) -> Category {
+    /// - Parameter withMe: whether the user is in the photo; nil when we can't tell.
+    static func category(for f: FeatureRecord, withMe: Bool? = nil) -> Category {
         let faceCount = f.faces.count
         let largestFace = f.faces.map(\.box.area).max() ?? 0
         let largestHuman = f.humanBoxes.map(\.area).max() ?? 0
         let scenery = hasLabel(f.labels, in: sceneryLabels)
+        // People, but the user isn't one of them.
+        if faceCount > 0 && withMe == false { return .friends }
         if faceCount >= 3 { return .group }
         if (1...2).contains(faceCount) || !f.humanBoxes.isEmpty {
             if largestFace >= Tuning.meFaceArea || largestHuman >= Tuning.meHumanArea { return .me }

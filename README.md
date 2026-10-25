@@ -14,8 +14,17 @@ Eymra turns a pile of trip or event photos into the 5–20 worth posting: the be
 3. On the phone: Settings → Privacy & Security → Developer Mode → on. Connect it to the Mac, unlock it and tap Trust.
 4. Run `scripts/build-device.sh && scripts/install-device.sh`. The first time, trust the developer app in Settings → General → VPN & Device Management. With a free Apple ID the install stops launching after 7 days; re-run the same command.
 
-## AI Judge
-Settings → AI Judge → on, then paste an Anthropic API key (it's stored in the Keychain). Choose Sonnet 5.5 (default, about $0.15 per 60-photo run), Haiku 5.5 (about $0.01) or Opus 5.5 (about $0.30). Without a key, offline, or on any error, the app uses the on-device picks and the results screen says why.
+## Claude's help (your Claude API key)
+In the app: **You** tab → **Claude's help** → switch on → paste your key (from console.anthropic.com → API keys) → **Save key**. The key is stored in the phone's Keychain; it is never in the code or the repo. Choose Balanced (Sonnet 5.5, about 15¢ a go), Fast and cheap (Haiku 5.5, about 1¢) or Best quality (Opus 5.5, about 30¢). Without a key, offline, or on any error, the app uses the on-device picks and says why.
+
+## Sign in with Google
+1. In Google Cloud Console → APIs & Services: set up the OAuth consent screen (External, Testing, add your Gmail as a test user).
+2. Credentials → Create credentials → OAuth client ID → **iOS**, bundle ID `app.eymra.Eymra`.
+3. Copy the client ID (ends in `.apps.googleusercontent.com`) into `Config/Secrets.xcconfig` as `GOOGLE_CLIENT_ID = …`, then rebuild.
+Until then, the sign-in step asks for a first name instead.
+
+## Your face
+Onboarding (or **You → Your face**) scans your face from five angles with the front camera, or uses 3–6 photos you choose. It is used only to tell your photos from your friends' and stays on the phone. The Simulator has no camera and can't make face prints, so recognition only works on a real iPhone.
 
 ## Tuning
 Every threshold and weight is in `Sources/Eymra/Core/Tuning.swift`. The ones most worth adjusting after a real trip:

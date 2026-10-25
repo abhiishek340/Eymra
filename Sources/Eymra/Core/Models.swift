@@ -71,9 +71,59 @@ nonisolated enum Mix: String, Codable, Sendable, Hashable, CaseIterable {
 nonisolated enum Category: String, Codable, Sendable, Hashable, CaseIterable {
     case me
     case meWithView = "me_with_view"
-    case group, view, food, detail, other
+    case group
+    /// People, but not the user (only known once the user's face is set up).
+    case friends
+    case view, food, detail, other
 
-    var isPeople: Bool { self == .me || self == .meWithView || self == .group }
+    var isPeople: Bool { self == .me || self == .meWithView || self == .group || self == .friends }
+    /// Shots the user is in (as far as categories alone can tell).
+    var isMe: Bool { self == .me || self == .meWithView }
+}
+
+// MARK: - The user
+
+/// What the user told us in onboarding.
+nonisolated enum PostingStyle: String, Codable, Sendable, Hashable, CaseIterable {
+    case mostlyMe, meAndFriends, mix, places
+}
+
+nonisolated enum GroupTaste: String, Codable, Sendable, Hashable, CaseIterable {
+    case love, sometimes, rarely
+}
+
+nonisolated enum StoryStyle: String, Codable, Sendable, Hashable, CaseIterable {
+    case story, bestFirst
+}
+
+nonisolated struct UserPrefs: Codable, Sendable, Hashable {
+    var style: PostingStyle = .mix
+    var groups: GroupTaste = .sometimes
+    var story: StoryStyle = .story
+
+    /// The per-run Mix control starts from this.
+    var defaultMix: Mix {
+        switch style {
+        case .mostlyMe: .moreOfMe
+        case .places: .moreScenery
+        case .meAndFriends, .mix: .balanced
+        }
+    }
+
+    /// Share of the set that should show the user, when we can recognise them.
+    var meShareTarget: Float {
+        switch style {
+        case .mostlyMe: Tuning.meShareMostlyMe
+        case .meAndFriends: Tuning.meShareFriends
+        case .mix: Tuning.meShareMix
+        case .places: Tuning.meSharePlaces
+        }
+    }
+}
+
+/// Face prints of the user from the face scan or chosen photos. Stays on the phone.
+nonisolated struct MeReference: Codable, Sendable, Hashable {
+    var prints: [[Float]]
 }
 
 nonisolated enum ExclusionTag: Codable, Sendable, Hashable {
@@ -125,11 +175,30 @@ nonisolated struct FaceFeature: Codable, Sendable, Hashable {
     var captureQuality: Float?
     var eyesClosed: Bool
     var smiling: Bool
+    /// Feature print of the face crop, used to recognise the user. Empty when unavailable.
+    var print: [Float] = []
+
+    init(box: NormRect, captureQuality: Float?, eyesClosed: Bool, smiling: Bool, print: [Float] = []) {
+        self.box = box
+        self.captureQuality = captureQuality
+        self.eyesClosed = eyesClosed
+        self.smiling = smiling
+        self.print = print
+    }
+
+    init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        box = try c.decode(NormRect.self, forKey: .box)
+        captureQuality = try c.decodeIfPresent(Float.self, forKey: .captureQuality)
+        eyesClosed = try c.decode(Bool.self, forKey: .eyesClosed)
+        smiling = try c.decode(Bool.self, forKey: .smiling)
+        print = try c.decodeIfPresent([Float].self, forKey: .print) ?? []
+    }
 }
 
 nonisolated enum FeatureSchema {
     /// Bump whenever stage 2 changes what it stores.
-    static let version = 1
+    static let version = 2
 }
 
 nonisolated struct FeatureRecord: Codable, Sendable, Hashable {
@@ -191,6 +260,8 @@ nonisolated struct PhotoScore: Codable, Sendable, Hashable {
     var cropFit: [AspectRatio: Float]
     var category: Category
     var exclusion: ExclusionTag?
+    /// Whether the user is in the photo: nil when we can't tell (no face set up, or no face prints).
+    var withMe: Bool? = nil
 }
 
 nonisolated struct JudgeVerdict: Codable, Sendable, Hashable {
@@ -208,6 +279,12 @@ nonisolated struct RunConfig: Codable, Sendable, Hashable {
     var count: Int
     var mix: Mix
     var judgeEnabled: Bool
+    var prefs = UserPrefs()
+}
+
+/// Where a pick sits in the story.
+nonisolated enum StoryRole: String, Codable, Sendable, Hashable {
+    case opener, closer
 }
 
 nonisolated struct Pick: Codable, Sendable, Hashable, Identifiable {
@@ -219,6 +296,7 @@ nonisolated struct Pick: Codable, Sendable, Hashable, Identifiable {
     var score: PhotoScore
     var judge: JudgeVerdict?
     var isLocked: Bool
+    var role: StoryRole? = nil
 
     var id: String { photoID }
 }
@@ -234,6 +312,9 @@ nonisolated struct RunStats: Codable, Sendable, Hashable {
     var judgeUsed = false
     var judgeImagesSent = 0
     var judgeNote: String?
+    /// The user's face is set up and was found in at least one photo.
+    var recognisedMe = false
+    var meNote: String?
     var stageDurations: [String: TimeInterval] = [:]
 }
 
@@ -250,6 +331,8 @@ nonisolated struct RunResult: Codable, Sendable, Hashable, Identifiable {
     var scores: [String: PhotoScore]
     var stats: RunStats
     var setRatio: AspectRatio
+    /// A short story title for the set.
+    var title: String = ""
 
     func cluster(containing photoID: String) -> Cluster? {
         clusters.first { $0.memberIDs.contains(photoID) }

@@ -9,6 +9,8 @@ nonisolated struct JudgeStage: Sendable {
         /// Cluster ID → new winner chosen by best-of calls.
         var newWinners: [String: String]
         var imagesSent: Int
+        /// A story title for the set; nil when the title call failed (it never fails the stage).
+        var title: String?
     }
 
     private static let log = Logger(subsystem: "app.eymra", category: "judge")
@@ -22,7 +24,7 @@ nonisolated struct JudgeStage: Sendable {
     func run(clusters: [Cluster], scores: [String: PhotoScore], targetCount: Int,
              progress: @Sendable (Int, Int) -> Void) async throws -> Output {
         let shortlist = Self.shortlist(clusters: clusters, scores: scores)
-        guard !shortlist.isEmpty else { return Output(verdicts: [:], newWinners: [:], imagesSent: 0) }
+        guard !shortlist.isEmpty else { return Output(verdicts: [:], newWinners: [:], imagesSent: 0, title: nil) }
         let images = try await render(shortlist)
         var sent = 0
 
@@ -60,11 +62,19 @@ nonisolated struct JudgeStage: Sendable {
             }
         }
 
+        // A title from the strongest winners (up to 8 images); a failure here keeps the simple title.
+        let titleIDs = winners
+            .sorted { Self.relevance($0, scores: scores, judge: pass1) > Self.relevance($1, scores: scores, judge: pass1) }
+            .prefix(min(8, targetCount))
+        let titleImages = titleIDs.compactMap { id in images[id].map { JudgeImage(photoID: id, jpeg: $0) } }
+        let title = titleImages.isEmpty ? nil : try? await provider.title(titleImages)
+        sent += titleImages.count
+
         let verdicts = pass1.mapValues { s in
             JudgeVerdict(photoID: s.photoID, score: s.score, category: s.category ?? scores[s.photoID]?.category ?? .other,
                          reason: s.reason, model: provider.model, promptVersion: provider.promptVersion)
         }
-        return Output(verdicts: verdicts, newWinners: newWinners, imagesSent: sent)
+        return Output(verdicts: verdicts, newWinners: newWinners, imagesSent: sent, title: title)
     }
 
     /// Every cluster winner plus up to two runner-ups, capped: runner-ups go first, then the lowest-Q winners.

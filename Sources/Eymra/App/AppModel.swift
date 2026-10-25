@@ -16,6 +16,7 @@ final class AppModel {
     let store: FeatureStore
     let container: ModelContainer
     let settings: Settings
+    let account: Account
     var access: LibraryAccess
 
     init(arguments: [String] = ProcessInfo.processInfo.arguments) {
@@ -25,11 +26,19 @@ final class AppModel {
             defaults.removePersistentDomain(forName: "eymra-uitests")
             settings = Settings(defaults: defaults)
             settings.judgeEnabled = arguments.contains("-judge")
+            account = Account(defaults: defaults)
+            if !arguments.contains("-onboarding") {
+                account.setProfile(UserProfile(id: "local:test", name: "Alex Rivera", firstName: "Alex", email: nil,
+                                               pictureURL: nil, provider: .local))
+                account.hasCompletedOnboarding = true
+            }
         } else {
             settings = Settings()
+            account = Account()
         }
         let fixtures = isUITesting ? try? FixtureSet.load(rebaseTo: Date()) : nil
         if let fixtures {
+            if !arguments.contains("-onboarding") { account.useReference(fixtures.meReference) }
             source = FixturePhotoSource(fixtures: fixtures)
             extractor = FakeFeatureExtractor(features: fixtures.features)
         } else {
