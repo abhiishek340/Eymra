@@ -9,4 +9,5 @@ The pasted spec ended in §9, so the milestones below are reconstructed (see DEC
 - [x] M4 – Results UI: reasons, best-of-N, swap, lock, hide, "Why not?"
 - [x] M5 – Export: album, share sheet, Stories copy, open platform app
 - [x] M6 – AI Judge (Claude) with Keychain key, cache, graceful fallback; Settings
-- [ ] M7 – UI smoke test, real-Vision run on seeded Simulator photos, README, device install
+- [x] M7 – UI smoke tests, real PhotoKit + Vision run and album export on seeded Simulator photos, README
+- [ ] M7 (device) – install on an iPhone and time a 200+ photo run: blocked on a signing team (no Apple ID on this Mac)
