@@ -1,0 +1,226 @@
+import Foundation
+import Observation
+import UIKit
+import os
+
+nonisolated enum RangePreset: String, CaseIterable, Identifiable, Sendable {
+    case today, yesterday, last3, last7, custom
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .today: String(localized: "Today")
+        case .yesterday: String(localized: "Yesterday")
+        case .last3: String(localized: "Last 3 days")
+        case .last7: String(localized: "Last 7 days")
+        case .custom: String(localized: "Custom")
+        }
+    }
+}
+
+@MainActor @Observable
+final class RunViewModel {
+    enum Phase: Equatable {
+        case idle
+        case running(PipelineProgress)
+        case finished
+        case failed(String)
+    }
+
+    private static let log = Logger(subsystem: "app.eymra", category: "ui")
+    let app: AppModel
+
+    // Inputs.
+    var preset: RangePreset { didSet { refreshCount() } }
+    var customStart: Date { didSet { if preset == .custom { refreshCount() } } }
+    var customEnd: Date { didSet { if preset == .custom { refreshCount() } } }
+    var platform: PlatformPreset.ID = .instagramCarousel {
+        didSet { count = PlatformPreset.preset(platform).defaultCount }
+    }
+    var count = PlatformPreset.preset(.instagramCarousel).defaultCount
+    var mix: Mix = .balanced
+
+    // Outputs.
+    private(set) var photoCount: Int?
+    private(set) var phase: Phase = .idle
+    var result: RunResult?
+    var showResults = false
+    var toast: String?
+    private var task: Task<Void, Never>?
+    private var countTask: Task<Void, Never>?
+
+    init(app: AppModel) {
+        self.app = app
+        let now = Date()
+        preset = app.isUITesting ? .last3 : .today
+        customEnd = now
+        // Default custom start: last Sunday 8 PM, the user's own example.
+        let cal = Calendar.current
+        var start = cal.date(bySettingHour: 20, minute: 0, second: 0, of: now) ?? now
+        while cal.component(.weekday, from: start) != 1 || start > now {
+            start = cal.date(byAdding: .day, value: -1, to: start) ?? start
+        }
+        customStart = start
+    }
+
+    var platformPreset: PlatformPreset { PlatformPreset.preset(platform) }
+
+    var range: DateInterval {
+        let now = Date(), cal = Calendar.current
+        let today = cal.startOfDay(for: now)
+        switch preset {
+        case .today: return DateInterval(start: today, end: now)
+        case .yesterday:
+            let start = cal.date(byAdding: .day, value: -1, to: today) ?? today
+            return DateInterval(start: start, end: today.addingTimeInterval(-0.001))
+        case .last3: return DateInterval(start: now.addingTimeInterval(-3 * 86_400), end: now)
+        case .last7: return DateInterval(start: now.addingTimeInterval(-7 * 86_400), end: now)
+        case .custom: return DateInterval(start: min(customStart, customEnd), end: max(customStart, customEnd))
+        }
+    }
+
+    var isRunning: Bool { if case .running = phase { true } else { false } }
+
+    func refreshCount() {
+        guard app.access.isUsable else { photoCount = nil; return }
+        countTask?.cancel()
+        let source = app.source, range = range
+        countTask = Task {
+            let n = await source.count(in: range)
+            if !Task.isCancelled { photoCount = n }
+        }
+    }
+
+    // MARK: Running
+
+    func run(locked: [String] = []) {
+        task?.cancel()
+        let config = RunConfig(range: range, platform: platform, count: count, mix: mix,
+                               judgeEnabled: app.settings.judgeEnabled)
+        let options = CurationPipeline.Options(allowNetwork: app.settings.allowNetworkNow,
+                                               judgeLongEdge: app.settings.judgeLongEdge, locked: locked)
+        let pipeline = app.makePipeline()
+        phase = .running(PipelineProgress(stage: .ingest, completed: 0, total: 0))
+        let (stream, continuation) = AsyncStream<PipelineProgress>.makeStream(bufferingPolicy: .bufferingNewest(1))
+        task = Task {
+            let listener = Task { @MainActor in
+                for await p in stream where self.isRunning { self.phase = .running(p) }
+            }
+            defer { listener.cancel() }
+            do {
+                let result = try await pipeline.run(config, options: options, progress: continuation)
+                continuation.finish()
+                guard !Task.isCancelled else { return }
+                self.result = result
+                self.phase = .finished
+                self.showResults = true
+            } catch is CancellationError {
+                continuation.finish()
+                self.phase = .idle
+            } catch {
+                continuation.finish()
+                Self.log.error("Run failed: \(String(describing: error), privacy: .public)")
+                self.phase = .failed(String(localized: "Something went wrong: \(error.localizedDescription)"))
+            }
+        }
+    }
+
+    func cancel() {
+        task?.cancel()
+        task = nil
+        phase = .idle
+    }
+
+    /// Re-runs the same configuration keeping locked picks.
+    func rerun() {
+        run(locked: result?.picks.filter(\.isLocked).map(\.photoID) ?? [])
+    }
+
+    // MARK: Editing the set
+
+    func toggleLock(_ photoID: String) {
+        guard var r = result, let i = r.picks.firstIndex(where: { $0.photoID == photoID }) else { return }
+        r.picks[i].isLocked.toggle()
+        result = r
+    }
+
+    /// Replaces the pick at `photoID` with `replacement` (a runner-up or any excluded photo).
+    func swap(_ photoID: String, with replacement: String) {
+        guard var r = result, let i = r.picks.firstIndex(where: { $0.photoID == photoID }),
+              let score = r.scores[replacement] else { return }
+        let old = r.picks[i]
+        let cluster = r.cluster(containing: replacement)
+        r.picks[i] = Pick(photoID: replacement, position: old.position, reason: String(localized: "Your pick"),
+                          category: score.category, clusterSize: cluster?.size ?? 1, score: score, judge: nil, isLocked: true)
+        r.excluded[replacement] = nil
+        r.excluded[photoID] = .belowCut(rank: r.candidates.firstIndex(of: photoID).map { $0 + 1 } ?? 0)
+        result = r
+    }
+
+    /// Swaps an excluded photo into the set: replaces the pick its tag points at, else the last unlocked pick.
+    func swapIn(_ photoID: String) {
+        guard let r = result else { return }
+        var target: String?
+        switch r.excluded[photoID] {
+        case .nearDuplicate(let k?), .sameBackground(let k), .sceneCap(let k):
+            target = r.picks.first { $0.position == k }?.photoID
+        default: break
+        }
+        if target == nil { target = r.picks.last { !$0.isLocked }?.photoID }
+        if let target { swap(target, with: photoID) }
+    }
+
+    /// Hides a photo for good and re-runs, keeping locks.
+    func hide(_ photoID: String) {
+        Task {
+            await app.store.setHidden(photoID, true)
+            if var r = result {
+                r.picks.removeAll { $0.photoID == photoID }
+                result = r
+            }
+            rerun()
+        }
+    }
+
+    // MARK: Export
+
+    func saveAlbum() async {
+        guard let r = result else { return }
+        do {
+            let title = AlbumExporter.albumTitle(range: r.config.range, platform: PlatformPreset.preset(r.config.platform))
+            _ = try await AlbumExporter.save(photoIDs: r.picks.map(\.photoID), title: title)
+            toast = String(localized: "Saved to album “\(title)”")
+        } catch {
+            toast = String(localized: "Could not save the album")
+        }
+    }
+
+    func shareFiles() async -> [URL] {
+        guard let r = result else { return [] }
+        do {
+            return try await ShareExporter.files(for: r.picks.map(\.photoID), source: app.source)
+        } catch {
+            toast = String(localized: "Could not prepare photos to share")
+            return []
+        }
+    }
+
+    func copyForStories(_ photoID: String) async {
+        guard let r = result else { return }
+        let saliency = r.scores[photoID] == nil ? nil : await app.store.features(for: [photoID])[photoID]?.saliencyBox
+        do {
+            let data = try await StoriesExporter.croppedJPEG(photoID: photoID, ratio: .vertical9x16, saliency: saliency, source: app.source)
+            StoriesExporter.copyToPasteboard(data)
+            toast = String(localized: "Copied, cropped to 9:16 for Stories")
+        } catch {
+            toast = String(localized: "Could not copy this photo")
+        }
+    }
+
+    func openPlatformApp() {
+        guard let scheme = PlatformPreset.preset(result?.config.platform ?? platform).appURL, let url = URL(string: scheme) else { return }
+        UIApplication.shared.open(url) { [weak self] opened in
+            if !opened { Task { @MainActor in self?.toast = String(localized: "That app isn't installed") } }
+        }
+    }
+}

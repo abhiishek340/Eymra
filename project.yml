@@ -1,0 +1,66 @@
+name: Eymra
+options:
+  bundleIdPrefix: app.eymra            # one stable value; free Apple IDs get 10 app IDs per 7 days
+  deploymentTarget: { iOS: "18.0" }
+  createIntermediateGroups: true
+configFiles:                           # DEVELOPMENT_TEAM and FACEBOOK_APP_ID live here, never in project.yml
+  Debug: Config/Secrets.xcconfig
+  Release: Config/Secrets.xcconfig
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    SWIFT_APPROACHABLE_CONCURRENCY: YES
+    SWIFT_DEFAULT_ACTOR_ISOLATION: nonisolated
+    CODE_SIGN_STYLE: Automatic
+    TARGETED_DEVICE_FAMILY: "1"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    STRING_CATALOG_GENERATE_SYMBOLS: NO
+targets:
+  Eymra:
+    type: application
+    platform: iOS
+    sources:
+      - Sources/Eymra
+      - path: Fixtures
+        buildPhase: resources
+        type: folder
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.eymra.Eymra
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+    info:
+      path: Sources/Eymra/Resources/Info.plist
+      properties:
+        CFBundleDisplayName: Eymra
+        NSPhotoLibraryUsageDescription: Eymra reads your photos on this phone to find the ones worth posting. Nothing is uploaded unless you turn on AI Judge.
+        NSPhotoLibraryAddUsageDescription: Eymra saves your picks to an album.
+        PHPhotoLibraryPreventAutomaticLimitedAccessAlert: true
+        LSApplicationQueriesSchemes: [instagram, instagram-stories, tiktok, snssdk1233, fb, twitter]
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UILaunchScreen: {}
+        FacebookAppID: $(FACEBOOK_APP_ID)
+    scheme:
+      testTargets: [EymraTests, EymraUITests]
+  EymraTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - Tests/EymraTests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.eymra.EymraTests
+        GENERATE_INFOPLIST_FILE: YES
+    dependencies: [{ target: Eymra }]
+  EymraUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [Tests/EymraUITests]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.eymra.EymraUITests
+        GENERATE_INFOPLIST_FILE: YES
+    dependencies: [{ target: Eymra }]
