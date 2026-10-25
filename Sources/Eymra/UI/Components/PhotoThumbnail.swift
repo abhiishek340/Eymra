@@ -31,7 +31,10 @@ struct PhotoThumbnail: View {
             .fill(Color(.secondarySystemFill))
             .overlay {
                 if let image {
+                    // The flexible frame keeps the filled image from reporting a size larger than its slot,
+                    // which would otherwise widen hit-testing and accessibility frames beyond the clip.
                     Image(uiImage: image).resizable().scaledToFill()
+                        .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
                 } else {
                     ProgressView()
                 }

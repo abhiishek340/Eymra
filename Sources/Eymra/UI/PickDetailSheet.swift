@@ -20,7 +20,7 @@ struct PickDetailSheet: View {
                             .clipShape(RoundedRectangle(cornerRadius: 12))
                             .listRowInsets(EdgeInsets())
                         Text(pick.reason).font(.headline)
-                        if pick.clusterSize > 1 {
+                        if pick.clusterSize > 1 && !pick.reason.contains("\(pick.clusterSize)") {
                             Text("Best of \(pick.clusterSize) near-identical shots").foregroundStyle(.secondary)
                         }
                     }
@@ -70,6 +70,7 @@ struct PickDetailSheet: View {
                         } label: {
                             Label(pick.isLocked ? "Unlock" : "Lock (keep on re-run)", systemImage: pick.isLocked ? "lock.open" : "lock")
                         }
+                        .accessibilityIdentifier("lockButton")
                         Button {
                             Task { await vm.copyForStories(pickID) }
                         } label: {
@@ -82,6 +83,7 @@ struct PickDetailSheet: View {
                         }
                     }
                 }
+                .accessibilityIdentifier("pickDetailList")
                 .navigationTitle("Pick \(pick.position)")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -105,7 +107,8 @@ struct PickDetailSheet: View {
         guard let c = cluster else { return [] }
         let ranked = c.runnerUpIDs + c.memberIDs.filter { $0 != c.winnerID && !c.runnerUpIDs.contains($0) }
         let picked = Set(r.picks.map(\.photoID))
-        return ranked.filter { !picked.contains($0) && r.scores[$0] != nil }
+        // Hard rejects (blurry, eyes closed, too dark…) stay in "Everything else", not in the swap strip.
+        return ranked.filter { !picked.contains($0) && r.scores[$0] != nil && !(r.excluded[$0]?.isHardReject ?? false) }
     }
 
     private func scoreRow(_ title: LocalizedStringKey, _ value: Float) -> some View {
