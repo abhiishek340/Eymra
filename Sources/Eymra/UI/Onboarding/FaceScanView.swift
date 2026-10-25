@@ -278,8 +278,10 @@ struct FaceUploadView: View {
             }
             if let message { Text(message).font(.footnote).foregroundStyle(Theme.inkSoft).multilineTextAlignment(.center) }
             Spacer()
+            // The label closure is Sendable, so it gets a plain string rather than reading view state.
+            let pickerTitle = faces.isEmpty ? String(localized: "Choose photos") : String(localized: "Choose different photos")
             PhotosPicker(selection: $selection, maxSelectionCount: 6, matching: .images) {
-                Text(faces.isEmpty ? "Choose photos" : "Choose different photos")
+                Text(pickerTitle)
             }
             .buttonStyle(faces.isEmpty ? AnyButtonStyle(.glassPrimary) : AnyButtonStyle(.glassSoft))
             .disabled(working)
