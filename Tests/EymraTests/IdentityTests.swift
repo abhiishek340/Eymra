@@ -4,23 +4,22 @@ import Testing
 struct IdentityTests {
     private let me = MeReference(prints: [Make.vector(0, offset: 0.1), Make.vector(0, offset: -0.1), Make.vector(0, offset: 0.2)])
 
-    @Test func thresholdAdaptsToTheUsersOwnSpread() {
-        let t = Identity.threshold(for: me)
-        #expect(t >= Tuning.meDistanceMin && t <= Tuning.meDistanceMax)
-        #expect(Identity.threshold(for: MeReference(prints: [Make.vector(0)])) == Tuning.meDistanceDefault)
-        // References far apart push the threshold to its ceiling.
-        #expect(Identity.threshold(for: MeReference(prints: [Make.vector(0), Make.vector(5)])) == Tuning.meDistanceMax)
+    @Test func similarityIsCosineOfUnitVectors() {
+        #expect(Identity.similarity(Make.vector(0), Make.vector(0)).map { abs($0 - 1) < 1e-5 } == true)
+        #expect(Identity.similarity(Make.vector(0), Make.vector(4)) == 0)
+        #expect(Identity.similarity([], Make.vector(0)) == nil)
+        #expect(Identity.similarity(Make.vector(0, dim: 8), Make.vector(0, dim: 16)) == nil)
     }
 
     @Test func findsTheUserAmongFriends() {
         let faces = [Make.feature("g", faces: 3, facePrints: [Make.vector(4), Make.vector(0, offset: 0.05), Make.vector(8)])].first!.faces
-        #expect(Identity.meFace(in: faces, reference: me, threshold: Identity.threshold(for: me)) == 1)
+        #expect(Identity.meFace(in: faces, reference: me) == 1)
         #expect(Identity.canTell(faces, reference: me))
     }
 
     @Test func friendsOnlyIsNotMe() {
         let faces = Make.feature("f", faces: 2, facePrints: [Make.vector(4), Make.vector(8)]).faces
-        #expect(Identity.meFace(in: faces, reference: me, threshold: Identity.threshold(for: me)) == nil)
+        #expect(Identity.meFace(in: faces, reference: me) == nil)
         #expect(Identity.canTell(faces, reference: me))
     }
 
