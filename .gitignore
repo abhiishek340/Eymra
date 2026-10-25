@@ -6,3 +6,5 @@ Config/Secrets.xcconfig
 xcuserdata/
 *.xcresult
 Tests/LocalFaces/
+CLAUDE.md
+.claude/
