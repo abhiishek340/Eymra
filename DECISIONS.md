@@ -7,7 +7,7 @@ Each entry: what the spec said, what was done, why.
 - **Toolchain.** Xcode 27.1 on macOS 27.0.1, iOS 27.1 SDK, Simulator `iPhone 18 Pro` (iOS 27.0). Deployment target iOS 18.0 as specified.
 - **Simulator viewer.** Xcode 27 ships `DeviceHub.app` instead of `Simulator.app`; `scripts/run-sim.sh` opens whichever exists (simctl works headless either way).
 - **Signing.** No Apple ID / team was available (`security find-identity` shows 0 identities), so device install (M7 device step) is deferred. `DEVELOPMENT_TEAM` goes in `Config/Secrets.xcconfig`; scripts are ready.
-- **Spec truncated.** The pasted spec ended in §9 ("Plumbing"). Sections 10–14 (platform presets, UI details, export, commands, milestones, tuning list) were reconstructed from the earlier sections; see below.
+- **Spec stopped early.** The original spec ended in §9 ("Plumbing"). Sections 10–14 (platform presets, UI details, export, commands, milestones, tuning list) were reconstructed from the earlier sections; see below.
 
 ## Reconstructed sections (10–14)
 - **Platform presets** (`Core/PlatformPreset.swift`): Instagram carousel 10/20, 4:5 then 1:1, cover-then-story order; Instagram post 1/1, 4:5; Reels/TikTok 10/20, 9:16, chronological; Facebook 6/20, 4:5/1:1/1.91:1, cover-then-story; X 4/4, 16:9, best first.

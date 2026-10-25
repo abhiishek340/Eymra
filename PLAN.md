@@ -1,6 +1,6 @@
 # Plan
 
-The pasted spec ended in §9, so the milestones below are reconstructed (see DECISIONS.md).
+The original spec stopped at section 9, so these milestones were filled in from the earlier sections (see DECISIONS.md).
 
 - [x] M0 – Scaffold: project.yml, scripts, CLAUDE.md, docs; app builds and launches on the Simulator
 - [x] M1 – Core algorithms (segmentation, clustering, scoring, categories, selection, ordering, explanations) with unit tests
