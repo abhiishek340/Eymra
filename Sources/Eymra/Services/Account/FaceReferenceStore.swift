@@ -11,6 +11,8 @@ nonisolated enum FaceReferenceStore {
     }
 
     private static var referenceFile: URL { directory.appendingPathComponent("reference.json") }
+    /// Length of a face signature from the bundled model.
+    static let signatureLength = 128
 
     static func load() -> MeReference? {
         guard let data = try? Data(contentsOf: referenceFile),

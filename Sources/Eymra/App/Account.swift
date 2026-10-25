@@ -26,6 +26,8 @@ final class Account {
     var hasCompletedOnboarding: Bool { didSet { defaults.set(hasCompletedOnboarding, forKey: "onboarded") } }
     private(set) var meReference: MeReference?
     private(set) var faceImageURLs: [URL] = []
+    /// The saved face came from an older version that recognised faces differently; it needs a new scan.
+    private(set) var faceNeedsRedo = false
     var signInError: String?
     var isSigningIn = false
     private let google = GoogleSignIn()
@@ -118,8 +120,16 @@ final class Account {
     }
 
     private func reloadFace() {
-        meReference = FaceReferenceStore.load()
+        var reference = FaceReferenceStore.load()
+        // Face signatures are 128 numbers; anything else was saved by an older version and can't be compared.
+        if let r = reference, r.prints.contains(where: { $0.count != FaceReferenceStore.signatureLength }) {
+            FaceReferenceStore.clear()
+            reference = nil
+            faceNeedsRedo = true
+        }
+        meReference = reference
         faceImageURLs = FaceReferenceStore.faceImageURLs()
+        if meReference != nil { faceNeedsRedo = false }
     }
 
     // MARK: Storage

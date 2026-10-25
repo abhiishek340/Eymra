@@ -45,6 +45,17 @@ final class RunViewModel {
     private(set) var phase: Phase = .idle
     var result: RunResult?
     var showResults = false
+    /// Photos to show while working: a spread of the range, then each photo as it's looked at.
+    private(set) var pool: [String] = []
+    /// The final picks, once known, so the working view can gather them before the story appears.
+    private(set) var finalPicks: [String] = []
+
+    /// Which of the three Create states to show.
+    enum Screen: Equatable { case setup, working, story }
+    var screen: Screen {
+        if isRunning { return .working }
+        return showResults && result != nil ? .story : .setup
+    }
     var toast: String?
     private var task: Task<Void, Never>?
     private var countTask: Task<Void, Never>?
@@ -102,20 +113,30 @@ final class RunViewModel {
                                                judgeLongEdge: app.settings.judgeLongEdge, locked: locked,
                                                me: app.account.meReference)
         let pipeline = app.makePipeline()
+        pool = []
+        finalPicks = []
         phase = .running(PipelineProgress(stage: .ingest, completed: 0, total: 0))
         let (stream, continuation) = AsyncStream<PipelineProgress>.makeStream(bufferingPolicy: .bufferingNewest(1))
         task = Task {
             let listener = Task { @MainActor in
-                for await p in stream where self.isRunning { self.phase = .running(p) }
+                for await p in stream where self.isRunning {
+                    self.absorb(p)
+                    self.phase = .running(p)
+                }
             }
             defer { listener.cancel() }
             do {
                 let result = try await pipeline.run(config, options: options, progress: continuation)
                 continuation.finish()
                 guard !Task.isCancelled else { return }
+                // Let the picks gather on screen for a moment before the story blooms in.
+                self.finalPicks = result.picks.map(\.photoID)
+                self.app.settings.deeperIssue = result.config.judgeEnabled ? result.stats.judgeNote : nil
+                try? await Task.sleep(for: .milliseconds(1400))
+                guard !Task.isCancelled else { return }
                 self.result = result
-                self.phase = .finished
                 self.showResults = true
+                self.phase = .finished
             } catch is CancellationError {
                 continuation.finish()
                 self.phase = .idle
@@ -131,6 +152,15 @@ final class RunViewModel {
     func open(_ run: RunResult) {
         result = run
         showResults = true
+    }
+
+    private func absorb(_ p: PipelineProgress) {
+        if p.stage == .ingest, !p.samples.isEmpty { pool = p.samples }
+        if let id = p.photoID, !pool.contains(id) {
+            pool.append(id)
+            if pool.count > 28 { pool.removeFirst(pool.count - 28) }
+        }
+        if p.stage == .selection, !p.samples.isEmpty { finalPicks = p.samples }
     }
 
     func cancel() {

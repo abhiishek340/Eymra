@@ -3,6 +3,7 @@ import SwiftUI
 /// Past picks, newest first.
 struct StoriesView: View {
     @Environment(AppModel.self) private var app
+    var refresh = 0
     let open: (RunResult) -> Void
     @State private var runs: [RunResult]?
 
@@ -10,7 +11,9 @@ struct StoriesView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Your stories").font(Theme.title(34)).padding(.top, 16)
+                    .revealOnAppear(trigger: refresh)
                 Text("Every set Eymra picked for you.").font(.system(size: 17, design: .serif)).foregroundStyle(Theme.inkSoft)
+                    .revealOnAppear(delay: 0.3, trigger: refresh)
                 if let runs, runs.isEmpty {
                     VStack(spacing: 10) {
                         Image(systemName: "book.closed").font(.system(size: 40, weight: .light))
@@ -21,9 +24,13 @@ struct StoriesView: View {
                     .padding(32)
                     .glassCard()
                 }
-                ForEach(runs ?? []) { run in
+                ForEach(Array((runs ?? []).enumerated()), id: \.element.id) { index, run in
                     Button { open(run) } label: { StoryRow(run: run) }
-                        .buttonStyle(.plain)
+                        .buttonStyle(PressableStyle())
+                        .riseIn(delay: 0.15 + Double(min(index, 5)) * 0.07)
+                        .scrollTransition(.interactive, axis: .vertical) { content, phase in
+                            content.scaleEffect(phase.isIdentity ? 1 : 0.95).opacity(phase.isIdentity ? 1 : 0.7)
+                        }
                 }
             }
             .padding(.horizontal, 20)
@@ -31,7 +38,7 @@ struct StoriesView: View {
         }
         .scrollIndicators(.hidden)
         .dreamScreen()
-        .task { runs = await app.store.recentRuns() }
+        .task(id: refresh) { runs = await app.store.recentRuns() }
     }
 }
 

@@ -13,6 +13,8 @@ final class Settings {
     var allowICloudDownloads: Bool { didSet { defaults.set(allowICloudDownloads, forKey: "allowICloudDownloads") } }
     var iCloudWiFiOnly: Bool { didSet { defaults.set(iCloudWiFiOnly, forKey: "iCloudWiFiOnly") } }
     private(set) var hasAPIKey: Bool
+    /// Why the deeper look didn't run last time, shown quietly in the You tab (never on the story).
+    var deeperIssue: String?
 
     static let longEdgeOptions = [504, 756, 1008]
 

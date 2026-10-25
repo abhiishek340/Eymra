@@ -19,7 +19,7 @@ struct ExcludedSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Button {
-                withAnimation(.spring(duration: 0.4)) { expanded.toggle() }
+                withAnimation(.smooth(duration: 0.5)) { expanded.toggle() }
             } label: {
                 HStack {
                     VStack(alignment: .leading, spacing: 3) {
@@ -53,6 +53,7 @@ struct ExcludedSection: View {
             WhyNotSheet(vm: vm, photoID: item.id, tag: result.excluded[item.id])
                 .presentationDetents([.medium, .large])
                 .presentationCornerRadius(36)
+                .presentationBackground(.ultraThinMaterial)
         }
     }
 }
@@ -75,7 +76,6 @@ struct WhyNotSheet: View {
 
     var body: some View {
         ZStack {
-            DreamBackground()
             VStack(spacing: 18) {
                 PhotoThumbnail(photoID: photoID, longEdge: 900)
                     .aspectRatio(contentMode: .fit)
@@ -84,6 +84,7 @@ struct WhyNotSheet: View {
                 Text("Why it wasn't picked").font(.system(size: 13, weight: .medium)).textCase(.uppercase).foregroundStyle(Theme.inkSoft)
                 Text(tag.map(Explanations.whyNot) ?? String(localized: "Not picked"))
                     .font(Theme.title(22))
+                    .revealOnAppear(delay: 0.2)
                     .multilineTextAlignment(.center)
                     .accessibilityIdentifier("whyNotReason")
                 if canSwap {

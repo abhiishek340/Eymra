@@ -10,7 +10,6 @@ struct OnboardingFlow: View {
 
     var body: some View {
         ZStack {
-            DreamBackground()
             Group {
                 switch step {
                 case .welcome: WelcomeStep { go(app.account.isSignedIn ? .question(0) : .signIn) }
@@ -23,14 +22,14 @@ struct OnboardingFlow: View {
                 case .photos: PhotoAccessStep { app.account.hasCompletedOnboarding = true }
                 }
             }
-            .transition(.asymmetric(insertion: .opacity.combined(with: .offset(y: 24)), removal: .opacity))
+            .transition(.blurReplace(.downUp))
             .id(step)
         }
         .foregroundStyle(Theme.ink)
     }
 
     private func go(_ next: Step) {
-        withAnimation(.easeInOut(duration: 0.5)) { step = next }
+        withAnimation(.smooth(duration: 0.7)) { step = next }
     }
 }
 
@@ -44,20 +43,19 @@ struct WelcomeStep: View {
         VStack(spacing: 0) {
             Spacer()
             Text("Eymra")
-                .font(Theme.display(56))
-                .opacity(appear ? 1 : 0)
-                .offset(y: appear ? 0 : 12)
+                .font(Theme.display(60))
+                .revealOnAppear(delay: 0.2, duration: 1.6)
             Text("Your best moments, picked for you.")
                 .font(.system(size: 18, design: .serif))
                 .foregroundStyle(Theme.inkSoft)
                 .padding(.top, 8)
-                .opacity(appear ? 1 : 0)
+                .revealOnAppear(delay: 1.0, duration: 1.2)
             Spacer()
             VStack(spacing: 14) {
                 Text("“Every day out has a story. We'll find the photos that tell it.”")
                     .font(.system(size: 22, weight: .medium, design: .serif))
                     .multilineTextAlignment(.center)
-                Text("You took hundreds of photos. Eymra looks through them on your phone and picks the few worth posting: the best of each moment, no repeats, a bit of everything.")
+                Text("You took hundreds of photos. Eymra looks through them and picks the few worth posting: the best of each moment, no repeats, a bit of everything.")
                     .font(.system(size: 15))
                     .foregroundStyle(Theme.inkSoft)
                     .multilineTextAlignment(.center)
@@ -66,6 +64,7 @@ struct WelcomeStep: View {
             .glassCard()
             .opacity(appear ? 1 : 0)
             .offset(y: appear ? 0 : 20)
+            .animation(.smooth(duration: 1.2).delay(1.4), value: appear)
             Button("Let's begin", action: next)
                 .buttonStyle(.glassPrimary)
                 .padding(.top, 22)
@@ -92,6 +91,7 @@ struct SignInStep: View {
                     .font(.system(size: 54, weight: .light))
                     .foregroundStyle(Theme.inkSoft)
                 Text("Make it yours").font(Theme.title(32))
+                    .revealOnAppear()
                 Text("Sign in so Eymra can remember you, your style and your face. All of it stays on this phone.")
                     .font(.system(size: 15))
                     .foregroundStyle(Theme.inkSoft)
@@ -217,9 +217,11 @@ struct QuestionStep: View {
             .padding(.top, 12)
             Spacer()
             Text(q.title).font(Theme.title(32))
+                .revealOnAppear()
             Text(q.subtitle).font(.system(size: 15)).foregroundStyle(Theme.inkSoft)
+                .revealOnAppear(delay: 0.4)
             VStack(spacing: 12) {
-                ForEach(q.options) { option in
+                ForEach(Array(q.options.enumerated()), id: \.element.id) { optionIndex, option in
                     Button {
                         option.apply(&app.account.prefs)
                         Task {
@@ -245,7 +247,9 @@ struct QuestionStep: View {
                         .contentShape(Rectangle())
                         .glassCard(cornerRadius: 22, tint: option.isSelected(app.account.prefs) ? .white.opacity(0.45) : nil, interactive: true)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(PressableStyle())
+                    .sensoryFeedback(.selection, trigger: option.isSelected(app.account.prefs))
+                    .riseIn(delay: 0.3 + Double(optionIndex) * 0.08)
                     .accessibilityIdentifier("answer-\(option.id)")
                 }
             }
@@ -271,10 +275,11 @@ struct FaceIntroStep: View {
                     .font(.system(size: 72, weight: .ultraLight))
             }
             Text("Help Eymra find you").font(Theme.title(32)).multilineTextAlignment(.center)
+                .revealOnAppear()
             VStack(alignment: .leading, spacing: 12) {
                 Label("Your friends are in lots of your photos. To pick the ones you want to post, Eymra needs to know which face is yours.", systemImage: "person.2")
                 Label("A quick look at your face from a few angles is all it takes.", systemImage: "camera.viewfinder")
-                Label("It stays on this phone. It's never uploaded, not even to Claude.", systemImage: "lock")
+                Label("It stays on this phone and is never uploaded.", systemImage: "lock")
             }
             .font(.system(size: 15))
             .labelStyle(DreamLabelStyle())
@@ -323,7 +328,8 @@ struct PhotoAccessStep: View {
             Image(systemName: "photo.on.rectangle.angled")
                 .font(.system(size: 64, weight: .ultraLight))
             Text("Let Eymra see your photos").font(Theme.title(30)).multilineTextAlignment(.center)
-            Text("Eymra looks at your photos right here on your phone to find the best ones. Nothing is uploaded unless you turn on Claude's help.")
+                .revealOnAppear()
+            Text("Eymra looks through your photos to find the ones worth sharing. Your photos stay yours.")
                 .font(.system(size: 15))
                 .foregroundStyle(Theme.inkSoft)
                 .multilineTextAlignment(.center)

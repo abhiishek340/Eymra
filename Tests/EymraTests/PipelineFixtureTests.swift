@@ -152,7 +152,7 @@ struct PipelineFixtureTests {
         let e = try env(judge: StubJudge(failure: .http(status: 401, message: "invalid x-api-key")), judgeEnabled: true)
         let r = try await e.pipeline.run(e.config)
         #expect(!r.stats.judgeUsed)
-        #expect(r.stats.judgeNote?.contains("401") == true)
+        #expect(r.stats.judgeNote?.contains("key didn't work") == true)
         #expect(r.picks.count == 10)
     }
 

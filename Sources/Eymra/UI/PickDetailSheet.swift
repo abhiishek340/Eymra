@@ -11,7 +11,7 @@ struct PickDetailSheet: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            DreamBackground()
+            DreamBackground(animated: false)
             if let pick, let r = vm.result {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 18) {
@@ -22,6 +22,7 @@ struct PickDetailSheet: View {
                         VStack(alignment: .leading, spacing: 6) {
                             Text("Photo \(pick.position)").font(.system(size: 13, weight: .medium)).textCase(.uppercase).foregroundStyle(Theme.inkSoft)
                             Text(pick.reason).font(Theme.title(24))
+                                .revealOnAppear(delay: 0.25)
                         }
 
                         let others = runnerUps(r)
@@ -57,7 +58,7 @@ struct PickDetailSheet: View {
                             meter(String(localized: "Looks good"), pick.score.aesthetic)
                             meter(String(localized: "Nicely framed"), pick.score.composition)
                             if let p = pick.score.people { meter(String(localized: "Faces"), p) }
-                            if let j = pick.judge { meter(String(localized: "Claude's opinion"), j.score) }
+                            if let j = pick.judge { meter(String(localized: "Overall feel"), j.score) }
                         }
                         .padding(18)
                         .glassCard()
