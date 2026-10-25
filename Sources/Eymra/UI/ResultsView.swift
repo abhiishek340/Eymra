@@ -8,16 +8,24 @@ struct ResultsView: View {
     @State private var shareItems: [URL] = []
     @State private var showShare = false
     @State private var exporting = false
+    @Namespace private var zoom
 
     var body: some View {
         ScrollView {
             if let r = vm.result {
                 VStack(alignment: .leading, spacing: 22) {
                     header(r)
-                    ForEach(r.picks) { pick in
+                    ForEach(Array(r.picks.enumerated()), id: \.element.id) { index, pick in
                         Button { selected = pick } label: { StoryCard(pick: pick, ratio: r.setRatio) }
-                            .buttonStyle(.plain)
+                            .buttonStyle(PressableStyle())
+                            .matchedTransitionSource(id: pick.photoID, in: zoom)
                             .accessibilityIdentifier("pick-\(pick.position)")
+                            .riseIn(delay: 0.25 + Double(min(index, 4)) * 0.09)
+                            .scrollTransition(.interactive, axis: .vertical) { content, phase in
+                                content
+                                    .scaleEffect(phase.isIdentity ? 1 : 0.95)
+                                    .opacity(phase.isIdentity ? 1 : 0.75)
+                            }
                     }
                     ExcludedSection(vm: vm, result: r)
                 }
@@ -31,8 +39,9 @@ struct ResultsView: View {
         .toolbar(.hidden, for: .navigationBar)
         .overlay(alignment: .top) { ZStack(alignment: .top) { BottomFade(height: 110, edge: .top); topBar } }
         .overlay(alignment: .bottom) { ZStack(alignment: .bottom) { BottomFade(height: 140); actionBar } }
-        .sheet(item: $selected) { pick in
+        .fullScreenCover(item: $selected) { pick in
             PickDetailSheet(vm: vm, pickID: pick.photoID)
+                .navigationTransition(.zoom(sourceID: pick.photoID, in: zoom))
         }
         .sheet(isPresented: $showShare) { ShareSheet(items: shareItems) }
         .overlay(alignment: .bottom) {
@@ -57,7 +66,7 @@ struct ResultsView: View {
 
     private var topBar: some View {
         HStack {
-            Button { vm.showResults = false } label: { Image(systemName: "chevron.left") }
+            Button { vm.showResults = false } label: { Image(systemName: "chevron.backward") }
                 .buttonStyle(RoundGlassButtonStyle())
                 .accessibilityLabel("Back")
                 .accessibilityIdentifier("resultsBack")
@@ -84,21 +93,19 @@ struct ResultsView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text(r.title.isEmpty ? String(localized: "Your story") : r.title)
                 .font(Theme.title(34))
+                .revealOnAppear(duration: 1.3, trigger: r.id)
                 .accessibilityIdentifier("storyTitle")
             Text("\(r.picks.count) photos, picked from \(r.stats.photoCount)")
                 .font(.system(size: 16, design: .serif))
                 .foregroundStyle(Theme.inkSoft)
+                .revealOnAppear(delay: 0.5, trigger: r.id)
                 .accessibilityIdentifier("resultsTitle")
             HStack(spacing: 6) {
-                if r.stats.judgeUsed {
-                    GlassTag(text: String(localized: "Claude helped"), systemImage: "sparkles")
-                } else {
-                    GlassTag(text: String(localized: "Picked on your phone"), systemImage: "iphone")
-                }
+                GlassTag(text: "\(r.stats.sceneCount) \(r.stats.sceneCount == 1 ? String(localized: "place") : String(localized: "places"))", systemImage: "mappin.and.ellipse")
                 if r.stats.recognisedMe { GlassTag(text: String(localized: "Found you"), systemImage: "person.crop.circle.badge.checkmark") }
-                GlassTag(text: "\(r.stats.sceneCount) \(r.stats.sceneCount == 1 ? String(localized: "place") : String(localized: "places"))", systemImage: "mappin")
             }
-            let notes = [r.stats.judgeNote, r.stats.meNote].compactMap { $0 } + r.stats.relaxations
+            .riseIn(delay: 0.7)
+            let notes = [r.stats.meNote].compactMap { $0 }
                 + (r.stats.shortfall > 0 ? [String(localized: "We only found \(r.picks.count) different moments worth posting, so you have \(r.picks.count) instead of \(r.config.count).")] : [])
             if !notes.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
@@ -144,7 +151,15 @@ struct StoryCard: View {
         VStack(alignment: .leading, spacing: 12) {
             Color.clear
                 .aspectRatio(ratio.value, contentMode: .fit)
-                .overlay { PhotoThumbnail(photoID: pick.photoID, longEdge: 1000) }
+                .overlay {
+                    // A gentle parallax: the photo drifts a little against its frame as the story scrolls.
+                    PhotoThumbnail(photoID: pick.photoID, longEdge: 1000)
+                        .scaleEffect(1.08)
+                        .visualEffect { content, proxy in
+                            let y = proxy.frame(in: .scrollView).midY
+                            return content.offset(y: max(-18, min(18, -(y - 400) * 0.04)))
+                        }
+                }
                 .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                 .overlay(alignment: .topLeading) {
                     Text("\(pick.position)")
@@ -178,5 +193,14 @@ struct StoryCard: View {
         .glassCard(cornerRadius: 30)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Photo \(pick.position): \(pick.reason)")
+    }
+}
+
+/// Cards that sink a little under the finger.
+struct PressableStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .animation(.spring(duration: 0.3, bounce: 0.3), value: configuration.isPressed)
     }
 }

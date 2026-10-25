@@ -23,6 +23,10 @@ nonisolated struct PipelineProgress: Sendable, Equatable {
     var total: Int
     /// Photos skipped because they are in iCloud and downloads are off.
     var inCloud = 0
+    /// The photo just looked at (for the visual progress).
+    var photoID: String?
+    /// A spread of photo IDs from the range, sent once when ingest finishes, and the picks when selection finishes.
+    var samples: [String] = []
 
     var fraction: Double { total > 0 ? Double(completed) / Double(total) : 0 }
 

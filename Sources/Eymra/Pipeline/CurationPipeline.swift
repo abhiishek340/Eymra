@@ -32,8 +32,10 @@ actor CurationPipeline {
         var stats = RunStats()
         var excluded: [String: ExclusionTag] = [:]
         var timer = StageTimer()
-        @Sendable func report(_ stage: PipelineProgress.Stage, _ done: Int, _ total: Int, inCloud: Int = 0) {
-            progress?.yield(PipelineProgress(stage: stage, completed: done, total: total, inCloud: inCloud))
+        @Sendable func report(_ stage: PipelineProgress.Stage, _ done: Int, _ total: Int, inCloud: Int = 0,
+                              photoID: String? = nil, samples: [String] = []) {
+            progress?.yield(PipelineProgress(stage: stage, completed: done, total: total, inCloud: inCloud,
+                                             photoID: photoID, samples: samples))
         }
 
         // Stage 1 – ingest and filter.
@@ -53,12 +55,14 @@ actor CurationPipeline {
         }
         stats.photoCount = all.count
         timer.end()
+        let step = max(1, photos.count / 24)
+        report(.ingest, photos.count, photos.count, samples: stride(from: 0, to: photos.count, by: step).map { photos[$0].id })
         try Task.checkCancellation()
 
         // Stage 2 – features (cached).
         timer.begin(.analyse)
-        let features = try await analyse(photos, options: options, excluded: &excluded) { done, total, cloud in
-            report(.analyse, done, total, inCloud: cloud)
+        let features = try await analyse(photos, options: options, excluded: &excluded) { done, total, cloud, id in
+            report(.analyse, done, total, inCloud: cloud, photoID: id)
         }
         timer.end()
         let analysed = photos.filter { features[$0.id] != nil }
@@ -144,7 +148,7 @@ actor CurationPipeline {
                     stats.judgeNote = Self.judgeNote(error)
                 }
             } else {
-                stats.judgeNote = String(localized: "AI Judge is on but has no API key; used on-device picks.")
+                stats.judgeNote = String(localized: "Add your Anthropic key to use deeper picks.")
             }
         }
         try Task.checkCancellation()
@@ -204,6 +208,7 @@ actor CurationPipeline {
         excluded.merge(Selection.exclusionTags(candidates: candidates, ordered: ordered, count: count)) { a, _ in a }
         for id in selection.selected where excluded[id] != nil { excluded[id] = nil }
 
+        report(.selection, 1, 1, samples: ordered)
         stats.stageDurations = timer.durations
         stats.excludedCount = excluded.count
         stats.sceneCount = scenes.count
@@ -226,7 +231,7 @@ actor CurationPipeline {
     // MARK: Stage 2
 
     private func analyse(_ photos: [PhotoRecord], options: Options, excluded: inout [String: ExclusionTag],
-                         progress: (Int, Int, Int) -> Void) async throws -> [String: FeatureRecord] {
+                         progress: (Int, Int, Int, String?) -> Void) async throws -> [String: FeatureRecord] {
         let ids = photos.map(\.id)
         var features = await store.features(for: ids)
         let analysedAt = await store.analysedDates(for: ids)
@@ -236,7 +241,7 @@ actor CurationPipeline {
         let total = photos.count
         var done = total - todo.count
         var inCloud = 0
-        progress(done, total, inCloud)
+        progress(done, total, inCloud, nil)
         guard !todo.isEmpty else { return features }
 
         let source = source, extractor = extractor, allow = options.allowNetwork
@@ -270,7 +275,7 @@ actor CurationPipeline {
                     }
                 }
                 done += 1
-                progress(done, total, inCloud)
+                progress(done, total, inCloud, id)
                 if pendingSave.count >= 25 {
                     await store.save(pendingSave, modificationDates: modDates)
                     pendingSave.removeAll()
@@ -301,10 +306,13 @@ actor CurationPipeline {
 
     static func judgeNote(_ error: any Error) -> String {
         switch error {
-        case JudgeError.missingKey: String(localized: "AI Judge needs an API key in Settings; used on-device picks.")
-        case JudgeError.offline: String(localized: "Offline, so AI Judge was skipped; used on-device picks.")
-        case JudgeError.http(let status, let message): String(localized: "AI Judge error \(status): \(message). Used on-device picks.")
-        default: String(localized: "AI Judge failed; used on-device picks.")
+        case JudgeError.missingKey: String(localized: "Add your Anthropic key to use deeper picks.")
+        case JudgeError.offline: String(localized: "You were offline, so the deeper look was skipped last time.")
+        case JudgeError.http(let status, _) where status == 401 || status == 403:
+            String(localized: "Your Anthropic key didn't work. Check it and paste it again.")
+        case JudgeError.http(let status, _) where status == 402 || status == 429:
+            String(localized: "Your Anthropic account is out of credit or busy, so the deeper look was skipped last time.")
+        default: String(localized: "The deeper look didn't work last time, so your quick picks were used.")
         }
     }
 }

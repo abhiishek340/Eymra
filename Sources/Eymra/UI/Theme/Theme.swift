@@ -16,17 +16,22 @@ enum Theme {
 // MARK: - Background
 
 /// A dreamy sky: a slowly breathing mesh gradient (sky, haze, meadow) with soft drifting light.
+/// Drawn once, behind the whole app. The light is radial gradients (no blur filters), and the whole layer is
+/// flattened into one Metal-backed image per frame, so it stays smooth while everything above it moves.
 struct DreamBackground: View {
+    var animated = true
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1 / 30, paused: reduceMotion)) { context in
-            let t = reduceMotion ? 0 : context.date.timeIntervalSinceReferenceDate
+        TimelineView(.animation(minimumInterval: 1 / 24, paused: !animated || reduceMotion || scenePhase != .active)) { context in
+            let t = animated && !reduceMotion ? context.date.timeIntervalSinceReferenceDate : 0
             ZStack {
                 MeshGradient(width: 3, height: 3, points: points(t), colors: colors)
                 orbs(t)
             }
+            .drawingGroup()
         }
         .ignoresSafeArea()
         .accessibilityHidden(true)
@@ -56,21 +61,126 @@ struct DreamBackground: View {
         ]
     }
 
+    private func light(_ color: Color, _ opacity: Double, size: CGFloat) -> some View {
+        Circle()
+            .fill(RadialGradient(colors: [color.opacity(opacity), color.opacity(0)], center: .center, startRadius: 0, endRadius: size / 2))
+            .frame(width: size, height: size)
+    }
+
     private func orbs(_ t: Double) -> some View {
         GeometryReader { geo in
             let w = geo.size.width, h = geo.size.height
+            let dark = scheme == .dark
             ZStack {
-                Circle().fill(.white.opacity(scheme == .dark ? 0.10 : 0.45))
-                    .frame(width: w * 0.9).blur(radius: 60)
+                light(.white, dark ? 0.12 : 0.55, size: w * 1.3)
                     .position(x: w * (0.25 + 0.08 * sin(t * 0.09)), y: h * (0.18 + 0.04 * cos(t * 0.12)))
-                Circle().fill(Color(red: 1, green: 0.93, blue: 0.85).opacity(scheme == .dark ? 0.08 : 0.35))
-                    .frame(width: w * 0.7).blur(radius: 70)
+                light(Color(red: 1, green: 0.92, blue: 0.84), dark ? 0.10 : 0.45, size: w * 1.1)
                     .position(x: w * (0.8 + 0.06 * cos(t * 0.08)), y: h * (0.55 + 0.05 * sin(t * 0.1)))
-                Circle().fill(.white.opacity(scheme == .dark ? 0.06 : 0.25))
-                    .frame(width: w * 0.6).blur(radius: 50)
+                light(.white, dark ? 0.08 : 0.30, size: w)
                     .position(x: w * (0.4 + 0.1 * sin(t * 0.06 + 2)), y: h * (0.9 + 0.03 * cos(t * 0.09)))
             }
         }
+    }
+}
+
+// MARK: - Motion
+
+/// Text that writes itself in: each line fades and un-blurs in turn (a TextRenderer, so wrapping stays native).
+struct RevealRenderer: TextRenderer, Animatable {
+    /// 0 → hidden, 1 → fully shown.
+    var progress: Double
+
+    var animatableData: Double {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    func draw(layout: Text.Layout, in context: inout GraphicsContext) {
+        let runs = layout.flatMap { line in line.flatMap { run in Array(run) } }
+        let count = max(1, runs.count)
+        for (i, slice) in runs.enumerated() {
+            // Each glyph starts a little after the previous one and takes 35% of the timeline to arrive.
+            let start = Double(i) / Double(count) * 0.65
+            let local = min(1, max(0, (progress - start) / 0.35))
+            var copy = context
+            copy.opacity = local
+            if local < 1 { copy.addFilter(.blur(radius: (1 - local) * 6)) }
+            copy.translateBy(x: 0, y: (1 - local) * 6)
+            copy.draw(slice)
+        }
+    }
+}
+
+extension View {
+    /// Writes text in with a soft blur when it appears (or when `trigger` changes).
+    func revealOnAppear<T: Equatable>(delay: Double = 0, duration: Double = 1.1, trigger: T = 0) -> some View {
+        modifier(RevealModifier(delay: delay, duration: duration, trigger: trigger))
+    }
+
+    /// Fades, lifts and un-blurs a view into place when it appears.
+    func riseIn(delay: Double = 0) -> some View {
+        modifier(RiseInModifier(delay: delay))
+    }
+
+    /// A soft light that sweeps across the content (for "working" text).
+    func shimmer(active: Bool = true) -> some View {
+        modifier(ShimmerModifier(active: active))
+    }
+}
+
+private struct RevealModifier<T: Equatable>: ViewModifier {
+    let delay: Double
+    let duration: Double
+    let trigger: T
+    @State private var progress = 0.0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        content
+            .textRenderer(RevealRenderer(progress: reduceMotion ? 1 : progress))
+            .onAppear { play() }
+            .onChange(of: trigger) { progress = 0; play() }
+    }
+
+    private func play() {
+        withAnimation(.easeOut(duration: duration).delay(delay)) { progress = 1 }
+    }
+}
+
+private struct RiseInModifier: ViewModifier {
+    let delay: Double
+    @State private var shown = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(shown || reduceMotion ? 1 : 0)
+            .offset(y: shown || reduceMotion ? 0 : 18)
+            .scaleEffect(shown || reduceMotion ? 1 : 0.97, anchor: .top)
+            .onAppear { withAnimation(.spring(duration: 0.7, bounce: 0.18).delay(delay)) { shown = true } }
+    }
+}
+
+private struct ShimmerModifier: ViewModifier {
+    let active: Bool
+    @State private var phase: CGFloat = -1
+
+    func body(content: Content) -> some View {
+        content
+            .overlay {
+                if active {
+                    GeometryReader { geo in
+                        LinearGradient(colors: [.clear, .white.opacity(0.7), .clear], startPoint: .leading, endPoint: .trailing)
+                            .frame(width: geo.size.width * 0.5)
+                            .offset(x: phase * geo.size.width * 1.5)
+                    }
+                    .mask(content)
+                    .allowsHitTesting(false)
+                }
+            }
+            .onAppear {
+                withAnimation(.linear(duration: 2.2).repeatForever(autoreverses: false)) { phase = 1 }
+            }
     }
 }
 
@@ -105,11 +215,10 @@ extension View {
         }
     }
 
-    /// Standard page padding and the dreamy background.
+    /// Ink text over the app's shared sky (the background itself is drawn once, at the root).
     func dreamScreen() -> some View {
         self
             .foregroundStyle(Theme.ink)
-            .background(DreamBackground())
             .scrollContentBackground(.hidden)
     }
 }

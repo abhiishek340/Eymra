@@ -69,9 +69,12 @@ final class SmokeTest: XCTestCase {
         screenshot(app, "10-home")
 
         app.buttons["runButton"].tap()
+        // The working state is constantly animating (and short with 40 photos), so it's photographed, not queried.
+        Thread.sleep(forTimeInterval: 0.9)
+        screenshot(app, "10b-working")
         XCTAssertTrue(app.staticTexts["resultsTitle"].waitForExistence(timeout: 30))
         XCTAssertEqual(app.staticTexts["resultsTitle"].label, "10 photos, picked from 40")
-        sleep(1)
+        sleep(2)
         screenshot(app, "11-results")
         app.swipeUp()
         screenshot(app, "12-results-scrolled")
@@ -87,7 +90,10 @@ final class SmokeTest: XCTestCase {
         for _ in 0..<5 where !lock.isHittable { app.swipeUp() }
         lock.tap()
         XCTAssertTrue(app.buttons["Unlock"].waitForExistence(timeout: 5))
-        app.buttons["detailDone"].tap()
+        let done = app.buttons["detailDone"]
+        for _ in 0..<5 where !done.isHittable { app.swipeDown() }
+        done.tap()
+        XCTAssertTrue(app.staticTexts["resultsTitle"].waitForExistence(timeout: 5))
 
         // Other photos → why not → use it instead.
         let excluded = app.buttons["excludedSection"]
@@ -122,8 +128,9 @@ final class SmokeTest: XCTestCase {
         XCTAssertTrue(app.buttons["runButton"].waitForExistence(timeout: 10))
         app.buttons["runButton"].tap()
         XCTAssertTrue(app.staticTexts["resultsTitle"].waitForExistence(timeout: 30))
-        XCTAssertTrue(app.staticTexts["Claude helped"].exists)
         XCTAssertEqual(app.staticTexts["storyTitle"].label, "A golden day out")
+        // Nothing on the story says how it was made.
+        XCTAssertFalse(app.staticTexts.containing(NSPredicate(format: "label CONTAINS[c] 'Claude'")).firstMatch.exists)
         screenshot(app, "20-results-claude")
     }
 }

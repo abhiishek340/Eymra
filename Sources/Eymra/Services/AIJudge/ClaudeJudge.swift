@@ -11,9 +11,9 @@ nonisolated struct ClaudeJudge: JudgeProvider {
     }
 
     static let models: [ModelOption] = [
-        ModelOption(id: "claude-sonnet-5-5", name: "Balanced · Sonnet", estimate: "about 15¢ a go"),
-        ModelOption(id: "claude-haiku-5-5", name: "Fast and cheap · Haiku", estimate: "about 1¢ a go"),
-        ModelOption(id: "claude-opus-5-5", name: "Best quality · Opus", estimate: "about 30¢ a go"),
+        ModelOption(id: "claude-sonnet-5-5", name: "Balanced", estimate: "about 15¢ a go"),
+        ModelOption(id: "claude-haiku-5-5", name: "Fast", estimate: "about 1¢ a go"),
+        ModelOption(id: "claude-opus-5-5", name: "Most careful", estimate: "about 30¢ a go"),
     ]
 
     private static let log = Logger(subsystem: "app.eymra", category: "judge")

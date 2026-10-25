@@ -1,21 +1,49 @@
 import SwiftUI
 
-struct HomeView: View {
+/// Create: setup → working → story, as states of one screen (no covers or pushes stacked on each other).
+struct CreateView: View {
+    @Bindable var vm: RunViewModel
+
+    var body: some View {
+        ZStack {
+            switch vm.screen {
+            case .setup:
+                SetupView(vm: vm)
+                    .transition(.blurReplace(.downUp))
+            case .working:
+                MagicView(vm: vm)
+                    .transition(.blurReplace)
+            case .story:
+                ResultsView(vm: vm)
+                    .transition(.asymmetric(insertion: .opacity.combined(with: .offset(y: 40)), removal: .opacity))
+            }
+        }
+        .animation(.smooth(duration: 0.7), value: vm.screen)
+        .sensoryFeedback(.success, trigger: vm.screen == .story)
+        .alert("Something went wrong", isPresented: Binding(get: { if case .failed = vm.phase { true } else { false } },
+                                                            set: { if !$0 { vm.cancel() } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            if case .failed(let message) = vm.phase { Text(message) }
+        }
+    }
+}
+
+struct SetupView: View {
     @Environment(AppModel.self) private var app
     @Bindable var vm: RunViewModel
 
     var body: some View {
-        NavigationStack {
+        Group {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     header
                     if !app.access.isUsable { accessCard }
                     if app.access == .limited { limitedCard }
-                    whenCard
-                    whereCard
-                    countCard
-                    focusCard
-                    claudeRow
+                    whenCard.riseIn(delay: 0.1)
+                    whereCard.riseIn(delay: 0.18)
+                    countCard.riseIn(delay: 0.26)
+                    focusCard.riseIn(delay: 0.34)
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 8)
@@ -29,19 +57,6 @@ struct HomeView: View {
                 }
             }
             .dreamScreen()
-            .toolbar(.hidden, for: .navigationBar)
-            .fullScreenCover(isPresented: Binding(get: { vm.isRunning }, set: { if !$0 { vm.cancel() } })) {
-                RunProgressView(vm: vm)
-            }
-            .navigationDestination(isPresented: $vm.showResults) {
-                ResultsView(vm: vm)
-            }
-            .alert("Something went wrong", isPresented: Binding(get: { if case .failed = vm.phase { true } else { false } },
-                                                                set: { if !$0 { vm.cancel() } })) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                if case .failed(let message) = vm.phase { Text(message) }
-            }
         }
         .task { vm.refreshCount() }
         .onChange(of: app.access) { vm.refreshCount() }
@@ -56,9 +71,11 @@ struct HomeView: View {
                 .textCase(.uppercase)
                 .foregroundStyle(Theme.inkSoft)
             Text(greeting).font(Theme.title(34))
+                .revealOnAppear(trigger: greeting)
             Text("Let's find the photos worth sharing.")
                 .font(.system(size: 17, design: .serif))
                 .foregroundStyle(Theme.inkSoft)
+                .revealOnAppear(delay: 0.35)
         }
         .padding(.top, 16)
         .padding(.bottom, 6)
@@ -205,31 +222,16 @@ struct HomeView: View {
         .glassCard()
     }
 
-    private var claudeRow: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "sparkles").font(.system(size: 18))
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Claude's help").font(.system(size: 16, weight: .semibold, design: .serif))
-                Text(claudeStatus).font(.system(size: 13)).foregroundStyle(Theme.inkSoft)
-            }
-            Spacer()
-        }
-        .padding(18)
-        .glassCard(cornerRadius: 22)
-    }
-
-    private var claudeStatus: String {
-        if !app.settings.judgeEnabled { return String(localized: "Off. Everything stays on your phone.") }
-        if app.settings.hasAPIKey || app.isUITesting { return String(localized: "On. Claude gives a second opinion.") }
-        return String(localized: "On, but it needs your Claude key (in the You tab).")
-    }
-
     private var runButton: some View {
         Button {
             vm.run()
         } label: {
-            Label("Find my best photos", systemImage: "wand.and.stars")
+            HStack(spacing: 10) {
+                Text("Find my best photos")
+                Image(systemName: "arrow.right").font(.system(size: 15, weight: .semibold))
+            }
         }
+        .sensoryFeedback(.impact(weight: .medium), trigger: vm.isRunning)
         .buttonStyle(.glassPrimary)
         .disabled(vm.photoCount == 0 || !app.access.isUsable)
         .padding(.horizontal, 20)

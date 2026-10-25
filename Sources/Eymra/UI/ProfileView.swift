@@ -33,7 +33,7 @@ struct ProfileView: View {
         .dreamScreen()
         .sheet(item: $faceFlow) { flow in
             ZStack {
-                DreamBackground()
+                DreamBackground(animated: false)
                 switch flow {
                 case .camera: FaceScanView(done: { faceFlow = nil }, cancel: { faceFlow = nil })
                 case .upload: FaceUploadView(done: { faceFlow = nil }, cancel: { faceFlow = nil })
@@ -166,17 +166,17 @@ struct ProfileView: View {
         return VStack(alignment: .leading, spacing: 14) {
             Toggle(isOn: $settings.judgeEnabled) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Claude's help").font(.system(size: 20, weight: .semibold, design: .serif))
-                    Text("A second opinion from Claude, an AI from Anthropic.").font(.system(size: 13)).foregroundStyle(Theme.inkSoft)
+                    Text("Deeper picks").font(.system(size: 20, weight: .semibold, design: .serif))
+                    Text("An even more careful look at your best photos.").font(.system(size: 13)).foregroundStyle(Theme.inkSoft)
                 }
             }
             .tint(Theme.ink.opacity(0.7))
             .accessibilityIdentifier("judgeToggle")
             if settings.judgeEnabled {
-                Text("When this is on, Eymra sends small copies of your best photos to Claude. Location and all other details are removed first. Your face setup is never sent.")
+                Text("This uses your own Anthropic account. Small copies of your best photos are sent for a closer look, with location and all other details removed. Your face is never sent.")
                     .font(.system(size: 13)).foregroundStyle(Theme.inkSoft)
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(settings.hasAPIKey ? "Your Claude key is saved ✓" : "Paste your Claude API key")
+                    Text(settings.hasAPIKey ? "Your key is saved" : "Paste your Anthropic API key")
                         .font(.system(size: 15, weight: .medium))
                     SecureField(settings.hasAPIKey ? "Paste a new key to replace it" : "sk-ant-…", text: $keyDraft)
                         .textInputAutocapitalization(.never)
@@ -205,6 +205,9 @@ struct ProfileView: View {
                 }
                 .pickerStyle(.menu)
                 .tint(Theme.ink)
+            }
+            if settings.judgeEnabled, let issue = settings.deeperIssue {
+                Label(issue, systemImage: "exclamationmark.circle").font(.footnote).foregroundStyle(Theme.inkSoft)
             }
             if let note { Text(note).font(.footnote).foregroundStyle(Theme.inkSoft) }
         }
