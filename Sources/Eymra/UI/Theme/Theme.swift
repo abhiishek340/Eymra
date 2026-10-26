@@ -66,12 +66,14 @@ struct DreamBackground: View {
     /// The sky follows the time of day (like a real one): soft cream mornings, clear pale middays, warm golden
     /// evenings and a deep night. Everything is low-saturation so glass and text stay calm and easy to read. No purple.
     private var colors: [Color] {
+        // Dark mode gets the deep night sky; light mode stays light at every hour (a pale moonlit mist at night),
+        // so the dark ink text always reads.
         if scheme == .dark { return Self.palette(.night) }
-        return Self.palette(TimeOfDay.now)
+        return Self.palette(TimeOfDay.now == .night ? .moonlit : TimeOfDay.now)
     }
 
     enum TimeOfDay {
-        case morning, day, evening, night
+        case morning, day, evening, night, moonlit
 
         static var now: TimeOfDay {
             switch Calendar.current.component(.hour, from: Date()) {
@@ -100,6 +102,9 @@ struct DreamBackground: View {
         case .evening: hex = [0xE8D5C6, 0xF0DFD0, 0xDCD9D6,
                               0xF7ECDF, 0xFCF4EA, 0xF2E9DD,
                               0xDCE1D2, 0xE5E6D6, 0xD5DCCD]
+        case .moonlit: hex = [0xD3DCE8, 0xDFE6EF, 0xD7DFEA,
+                              0xEAEEF3, 0xF4F6F8, 0xE6EBF1,
+                              0xD5DED9, 0xDFE6E1, 0xD3DCD7]
         case .night:   hex = [0x0D1621, 0x111C28, 0x0F1923,
                               0x152230, 0x1A2833, 0x14212B,
                               0x0E1B17, 0x12211B, 0x0F1A16]
