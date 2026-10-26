@@ -280,6 +280,9 @@ struct RoundGlassButtonStyle: ButtonStyle {
             .font(.system(size: 17, weight: .semibold))
             .foregroundStyle(Theme.ink)
             .frame(width: 44, height: 44)
+            // The whole circle takes the tap: Liquid Glass alone doesn't count as tappable content,
+            // which left only the glyph (9×15 pt) tappable on iOS 26.
+            .contentShape(Circle())
             .glassCapsule()
             .opacity(isEnabled ? 1 : 0.4)
             .scaleEffect(configuration.isPressed ? 0.92 : 1)
