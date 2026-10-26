@@ -31,6 +31,19 @@ nonisolated enum Identity {
         faces.contains { face in reference.prints.contains { similarity(face.print, $0) != nil } }
     }
 
+    /// Your references for one run: your profile, plus faces from this run that match the profile confidently.
+    /// A shot of you looking down can then match a clear shot from the same day (same light, same clothes).
+    /// Only faces close to the profile itself are added, so the set can't drift towards a look-alike friend.
+    static func runReference(_ profile: MeReference, faces: [[Float]]) -> MeReference {
+        let confident = faces
+            .compactMap { f in similarity(f, to: profile).map { (f, $0) } }
+            .filter { $0.1 >= Tuning.meConfident }
+            .sorted { $0.1 > $1.1 }
+            .prefix(Tuning.maxRunReferences)
+            .map(\.0)
+        return MeReference(prints: profile.prints + confident)
+    }
+
     /// Keeps reference signatures that agree with each other, so a stray face (someone walking past during the scan,
     /// a friend in a chosen photo) doesn't become part of "you". The anchor is the signature most similar to the rest.
     static func consistentReferences(_ prints: [[Float]], minimum: Float = Tuning.enrolConsistency) -> [[Float]] {

@@ -14,8 +14,9 @@ nonisolated enum Scoring {
                       scenes: [Scene],
                       groups: [(sceneID: String, members: [String])],
                       primaryRatio: AspectRatio,
-                      me: MeReference? = nil) -> Output {
+                      me profile: MeReference? = nil) -> Output {
         let ids = groups.flatMap(\.members).filter { features[$0] != nil && photos[$0] != nil }
+        let me = profile.map { p in Identity.runReference(p, faces: ids.flatMap { features[$0]?.faces.map(\.print) ?? [] }) }
         let groupOf: [String: Int] = Dictionary(uniqueKeysWithValues: groups.enumerated().flatMap { gi, g in
             g.members.map { ($0, gi) }
         })
