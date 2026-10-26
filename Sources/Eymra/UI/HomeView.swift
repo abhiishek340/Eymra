@@ -69,14 +69,13 @@ struct SetupView: View {
     // MARK: Header
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(Date.now, format: .dateTime.weekday(.wide).day().month(.wide))
-                .font(.system(size: 12, weight: .semibold))
-                .textCase(.uppercase)
-                .tracking(0.8)
-                .foregroundStyle(Theme.inkFaint)
-            Text(greeting).font(Theme.title(32))
-                .revealOnAppear(trigger: greeting)
+        VStack(alignment: .leading, spacing: 6) {
+            Text(greeting)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(Theme.inkSoft)
+            (Text("Find your ") + Text("keepers").italic().foregroundColor(Theme.ember) + Text("."))
+                .font(.system(size: 40, weight: .semibold, design: .serif))
+                .revealOnAppear(duration: 1.2, trigger: greeting)
         }
         .padding(.top, 14)
     }
@@ -294,63 +293,81 @@ struct SetupView: View {
 
 // MARK: - Pieces
 
-/// Your own photos from the chosen time, fanned out like a hand of cards, with the count beside them.
+/// Your own photos from the chosen time as a little scrapbook: tilted prints with white borders, and the count
+/// on a round ember sticker slapped across the corner.
 struct PhotoHero: View {
     let ids: [String]
     let count: Int?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var float = false
 
-    var body: some View {
-        HStack(spacing: 18) {
-            ZStack {
-                let shown = Array(ids.prefix(5))
-                if shown.isEmpty {
-                    ForEach(0..<3, id: \.self) { i in
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .fill(.white.opacity(0.35))
-                            .overlay(Image(systemName: "photo").font(.system(size: 22, weight: .light)).foregroundStyle(Theme.inkFaint))
-                            .frame(width: 78, height: 100)
-                            .rotationEffect(.degrees(Double(i - 1) * 9))
-                            .offset(x: CGFloat(i - 1) * 26)
-                    }
-                } else {
-                    ForEach(Array(shown.enumerated()), id: \.element) { i, id in
-                        let mid = Double(shown.count - 1) / 2, k = Double(i) - mid
-                        PhotoThumbnail(photoID: id, longEdge: 260)
-                            .frame(width: 78, height: 100)
-                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(.white, lineWidth: 2))
-                            .shadow(color: .black.opacity(0.14), radius: 10, y: 6)
-                            .rotationEffect(.degrees(k * 8))
-                            .offset(x: k * 24, y: abs(k) * 6 + (float ? -3 : 3) * (i.isMultiple(of: 2) ? 1 : -1))
-                            .zIndex(-abs(k))
-                            .transition(.scale(scale: 0.7).combined(with: .opacity))
-                    }
-                }
-            }
-            .frame(width: 190, height: 130)
-            .animation(Theme.Motion.pop, value: ids)
+    private struct Spot { var x: CGFloat; var y: CGFloat; var angle: Double; var w: CGFloat }
+    private let spots: [Spot] = [
+        Spot(x: -98, y: 10, angle: -9, w: 118), Spot(x: 92, y: -6, angle: 7, w: 122),
+        Spot(x: -6, y: -16, angle: -2, w: 136), Spot(x: 40, y: 58, angle: 11, w: 96),
+    ]
 
-            VStack(alignment: .leading, spacing: 0) {
-                Text(count.map { "\($0)" } ?? "–")
-                    .font(Theme.display(52))
-                    .monospacedDigit()
-                    .contentTransition(.numericText())
-                    .animation(Theme.Motion.pop, value: count)
-                Text(count == 1 ? "photo" : "photos")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Theme.inkSoft)
+    var body: some View {
+        ZStack {
+            let shown = Array(ids.prefix(spots.count))
+            ForEach(Array(spots.enumerated()), id: \.offset) { i, spot in
+                printCard(id: i < shown.count ? shown[i] : nil, width: spot.w)
+                    .rotationEffect(.degrees(spot.angle + (float ? (i.isMultiple(of: 2) ? 1.5 : -1.5) : 0)))
+                    .offset(x: spot.x, y: spot.y + (float ? -3 : 3) * (i.isMultiple(of: 2) ? 1 : -1))
+                    .zIndex(i == 2 ? 2 : Double(i) * 0.1)
             }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(count.map { $0 == 0 ? String(localized: "No photos from this time") : String(localized: "\($0) photos from this time") }
-                                ?? String(localized: "Counting your photos…"))
-            .accessibilityIdentifier("photoCount")
+            sticker
+                .rotationEffect(.degrees(-10))
+                .offset(x: 118, y: 78)
+                .zIndex(3)
         }
+        .frame(height: 260)
+        .frame(maxWidth: .infinity)
+        .animation(Theme.Motion.pop, value: ids)
         .onAppear {
             guard !reduceMotion && !Theme.stillMotion else { return }
-            withAnimation(.easeInOut(duration: 3.2).repeatForever(autoreverses: true)) { float = true }
+            withAnimation(.easeInOut(duration: 3.6).repeatForever(autoreverses: true)) { float = true }
         }
+    }
+
+    private func printCard(id: String?, width: CGFloat) -> some View {
+        Group {
+            if let id {
+                PhotoThumbnail(photoID: id, longEdge: 400)
+            } else {
+                Theme.ink.opacity(0.06)
+                    .overlay(Image(systemName: "photo").font(.system(size: 24, weight: .light)).foregroundStyle(Theme.inkFaint))
+            }
+        }
+        .frame(width: width, height: width * 1.25)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .padding(6)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Theme.surface))
+        .shadow(color: .black.opacity(0.14), radius: 14, y: 8)
+        .transition(.scale(scale: 0.8).combined(with: .opacity))
+    }
+
+    private var sticker: some View {
+        VStack(spacing: -2) {
+            Text(count.map { "\($0)" } ?? "–")
+                .font(.system(size: 30, weight: .bold, design: .serif))
+                .monospacedDigit()
+                .contentTransition(.numericText())
+            Text(count == 1 ? "photo" : "photos")
+                .font(.system(size: 11, weight: .bold))
+                .textCase(.uppercase)
+                .tracking(0.6)
+        }
+        .foregroundStyle(.white)
+        .frame(width: 94, height: 94)
+        .background(Circle().fill(Theme.ember))
+        .overlay(Circle().strokeBorder(.white.opacity(0.9), style: StrokeStyle(lineWidth: 2, dash: [3, 4])).padding(5))
+        .shadow(color: Theme.ember.opacity(0.35), radius: 12, y: 6)
+        .animation(Theme.Motion.pop, value: count)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(count.map { $0 == 0 ? String(localized: "No photos from this time") : String(localized: "\($0) photos from this time") }
+                            ?? String(localized: "Counting your photos…"))
+        .accessibilityIdentifier("photoCount")
     }
 }
 
@@ -465,7 +482,9 @@ struct RoundGlassButtonStyle: ButtonStyle {
             // The whole circle takes the tap: Liquid Glass alone doesn't count as tappable content,
             // which left only the glyph (9×15 pt) tappable on iOS 26.
             .contentShape(Circle())
-            .glassCapsule()
+            .background(Circle().fill(Theme.surface))
+            .overlay(Circle().strokeBorder(Theme.hairline, lineWidth: 1))
+            .shadow(color: .black.opacity(0.05), radius: 8, y: 3)
             .opacity(isEnabled ? 1 : 0.4)
             .scaleEffect(configuration.isPressed ? 0.92 : 1)
             .animation(Theme.Motion.snap, value: configuration.isPressed)
