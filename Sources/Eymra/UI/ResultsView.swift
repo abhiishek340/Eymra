@@ -65,6 +65,7 @@ struct ResultsView: View {
                 Image(systemName: "ellipsis")
                     .font(.system(size: 17, weight: .semibold))
                     .frame(width: 44, height: 44)
+                    .contentShape(Circle())
                     .glassCapsule()
             }
             .accessibilityLabel("More")
@@ -125,6 +126,7 @@ struct ResultsView: View {
                     .foregroundStyle(Theme.ink)
                     .padding(.horizontal, 16)
                     .frame(height: 56)
+                    .contentShape(Capsule())
                     .glassCapsule()
             }
             .buttonStyle(.plain)

@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Eymra's look: a soft, slowly moving sky behind clear glass, serif headlines, calm ink-coloured text.
 enum Theme {
@@ -282,6 +283,7 @@ struct GlassPrimaryButtonStyle: ButtonStyle {
             .foregroundStyle(Theme.onInk)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 18)
+            .contentShape(Capsule())
             .background {
                 Capsule().fill(Theme.ink)
                     .overlay(Capsule().fill(LinearGradient(colors: [.white.opacity(0.16), .clear], startPoint: .top, endPoint: .center)))
@@ -303,6 +305,8 @@ struct GlassButtonStyle: ButtonStyle {
             .foregroundStyle(Theme.ink)
             .padding(.horizontal, 18)
             .padding(.vertical, 12)
+            // The whole pill takes the tap: Liquid Glass alone doesn't count as tappable content.
+            .contentShape(Capsule())
             .glassCapsule(tint: .white.opacity(configuration.isPressed ? 0.35 : 0.12))
             .scaleEffect(configuration.isPressed ? 0.96 : 1)
             .animation(Theme.Motion.snap, value: configuration.isPressed)
@@ -334,6 +338,7 @@ struct GlassChip: View {
             .foregroundStyle(selected ? Theme.onInk : Theme.ink.opacity(0.8))
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
+            .contentShape(Capsule())
             .background {
                 if selected { Capsule().fill(Theme.ink).transition(.scale(scale: 0.9).combined(with: .opacity)) }
             }
@@ -425,27 +430,42 @@ struct ToastOverlay: View {
 }
 
 /// Swipe right from the left edge to go back, like a navigation stack. The screen follows the finger.
+/// Uses UIKit's screen-edge pan (the recogniser navigation controllers use), which is built to coexist with
+/// scroll views; plain SwiftUI drags lose the touch to the scroll view on a real device.
 struct EdgeSwipeBack: ViewModifier {
     let action: () -> Void
-    @GestureState private var drag: CGFloat = 0
+    @State private var drag: CGFloat = 0
 
     func body(content: Content) -> some View {
         content
             .offset(x: max(0, drag) * 0.6)
-            .overlay(alignment: .leading) {
-                Color.clear
-                    .frame(width: 28)
-                    .contentShape(Rectangle())
-                    .gesture(
-                        DragGesture(minimumDistance: 12, coordinateSpace: .global)
-                            .updating($drag) { value, state, _ in state = value.translation.width }
-                            .onEnded { value in
-                                if value.translation.width > 90 || value.predictedEndTranslation.width > 220 { action() }
-                            }
-                    )
-                    .accessibilityHidden(true)
-            }
-            .animation(.interactiveSpring(duration: 0.3), value: drag)
+            .gesture(ScreenEdgePan { translation in
+                drag = translation
+            } ended: { translation, velocity in
+                withAnimation(Theme.Motion.snap) { drag = 0 }
+                if translation > 90 || velocity > 600 { action() }
+            })
+    }
+}
+
+private struct ScreenEdgePan: UIGestureRecognizerRepresentable {
+    let changed: (CGFloat) -> Void
+    let ended: (CGFloat, CGFloat) -> Void
+
+    func makeUIGestureRecognizer(context: Context) -> UIScreenEdgePanGestureRecognizer {
+        let recognizer = UIScreenEdgePanGestureRecognizer()
+        recognizer.edges = .left
+        return recognizer
+    }
+
+    func handleUIGestureRecognizerAction(_ recognizer: UIScreenEdgePanGestureRecognizer, context: Context) {
+        let translation = recognizer.translation(in: recognizer.view).x
+        switch recognizer.state {
+        case .began, .changed: changed(translation)
+        case .ended: ended(translation, recognizer.velocity(in: recognizer.view).x)
+        case .cancelled, .failed: ended(0, 0)
+        default: break
+        }
     }
 }
 

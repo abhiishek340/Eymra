@@ -57,8 +57,10 @@ final class EndToEndTests: XCTestCase {
 
     @MainActor
     private func swipeFromLeftEdge() {
-        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.01, dy: 0.5))
-        start.press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.5)))
+        // Start right at the screen edge and move at a natural thumb speed, the way the system edge swipe expects.
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5))
+        let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.75, dy: 0.5))
+        start.press(forDuration: 0.01, thenDragTo: end, withVelocity: .default, thenHoldForDuration: 0.05)
     }
 
     // MARK: Onboarding

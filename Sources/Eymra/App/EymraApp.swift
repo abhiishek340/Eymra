@@ -71,16 +71,21 @@ struct MainView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            // All three tabs stay alive (no rebuilds, scroll positions kept); only the visible one takes touches.
-            CreateView(vm: vm)
-                .tabLayer(visible: tab == .create)
-            StoriesView(refresh: storiesRefresh) { run in
-                vm.open(run)
-                tab = .create
+            // Only the visible tab is on screen. Keeping hidden tabs at zero opacity left their scroll views
+            // catching touches on a real iPhone (the story's back button stopped working). State lives in the
+            // view model and account, so switching back finds everything as it was.
+            switch tab {
+            case .create:
+                CreateView(vm: vm).transition(.opacity)
+            case .stories:
+                StoriesView(refresh: storiesRefresh) { run in
+                    vm.open(run)
+                    tab = .create
+                }
+                .transition(.opacity)
+            case .you:
+                ProfileView().transition(.opacity)
             }
-            .tabLayer(visible: tab == .stories)
-            ProfileView()
-                .tabLayer(visible: tab == .you)
             if showsTabBar {
                 if tab != .create { BottomFade(height: 130) }
                 GlassTabBar(selection: $tab)
@@ -92,16 +97,6 @@ struct MainView: View {
         .animation(.smooth(duration: 0.35), value: tab)
         .sensoryFeedback(.selection, trigger: tab)
         .onChange(of: tab) { _, new in if new == .stories { storiesRefresh += 1 } }
-    }
-}
-
-private extension View {
-    func tabLayer(visible: Bool) -> some View {
-        self
-            .opacity(visible ? 1 : 0)
-            .scaleEffect(visible ? 1 : 0.985)
-            .allowsHitTesting(visible)
-            .accessibilityHidden(!visible)
     }
 }
 
