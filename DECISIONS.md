@@ -97,3 +97,10 @@ Each entry: what the spec said, what was done, why.
 - **Onboarding:** a drawn illustration of photos floating up (nothing bundled), answers as a 2×2 grid of big icon tiles, and the face intro as a face with five orbiting dots (one per scan angle) and three icon chips.
 - **Night colours:** light mode now stays light at night (a pale moonlit mist). The deep night sky is for dark mode only; before, dark ink text sat on a dark sky after 9 pm.
 - Category colours are muted and purple-free (slate, blue-grey, teal, soft blue, sage, sand, taupe).
+
+## Round 6: the Paper theme (2026-10-25)
+- **Feedback:** the app looked basic, and the dark blue was unwanted; the ask was to be as clean as Hinge or Uber and as creative.
+- **Paper theme:** a flat warm off-white page (warm charcoal in dark mode, never blue), solid surface cards with a hairline and a soft shadow, near-black type, and one accent, ember orange, used only for the count sticker, the opener label and progress. The moving gradient sky is gone, which also removes its per-frame cost. Glass stays only for the floating tab bar and floating buttons.
+- **Creative touches:** an editorial serif headline ("Find your *keepers*.") with the one italic word in ember; the user's photos as a scrapbook of tilted, white-bordered prints with a round dashed-edge "40 photos" sticker; story cards with a white number badge and an ember "Opens your story" label.
+- Chips and secondary buttons are solid pills with a hairline instead of glass, which reads crisper on paper.
+- **Grouping fix (round 5b):** near-duplicates now need the same people (face signature similarity ≥ 0.32 for solo and pair shots), so a friend posing at the same spot is not another take of you, and the runner-up strip never mixes a photo of you with one that isn't.
