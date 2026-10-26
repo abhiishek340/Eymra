@@ -70,15 +70,17 @@ struct PickDetailSheet: View {
                             .glassCard()
                         }
 
-                        VStack(alignment: .leading, spacing: 12) {
-                            DreamHeading(text: String(localized: "Why we picked it"))
-                            meter(String(localized: "Sharp and well lit"), pick.score.technical)
-                            meter(String(localized: "Looks good"), pick.score.aesthetic)
-                            meter(String(localized: "Nicely framed"), pick.score.composition)
-                            if let p = pick.score.people { meter(String(localized: "Faces"), p) }
-                            if let j = pick.judge { meter(String(localized: "Overall feel"), j.score) }
+                        HStack(spacing: 0) {
+                            ScoreRing(value: pick.score.technical, symbol: "camera.aperture", label: String(localized: "Sharp"))
+                            ScoreRing(value: pick.score.aesthetic, symbol: "sun.max", label: String(localized: "Looks"))
+                            ScoreRing(value: pick.score.composition, symbol: "viewfinder", label: String(localized: "Framing"))
+                            if let p = pick.score.people {
+                                ScoreRing(value: p, symbol: "face.smiling", label: String(localized: "Faces"))
+                            } else if let j = pick.judge {
+                                ScoreRing(value: j.score, symbol: "heart", label: String(localized: "Feel"))
+                            }
                         }
-                        .padding(18)
+                        .padding(.vertical, 18)
                         .glassCard()
 
                         VStack(spacing: 10) {
@@ -147,19 +149,31 @@ struct PickDetailSheet: View {
         return ranked.filter { !picked.contains($0) && r.scores[$0] != nil && !(r.excluded[$0]?.isHardReject ?? false) }
     }
 
-    private func meter(_ title: String, _ value: Float) -> some View {
-        HStack {
-            Text(title).font(.system(size: 15))
-            Spacer()
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Theme.ink.opacity(0.12))
-                    Capsule().fill(Theme.ink.opacity(0.7)).frame(width: geo.size.width * CGFloat(max(0.04, value)))
-                }
+}
+
+/// A small ring that fills to the score, with an icon in the middle.
+struct ScoreRing: View {
+    let value: Float
+    let symbol: String
+    let label: String
+    @State private var shown: Double = 0
+
+    var body: some View {
+        VStack(spacing: 8) {
+            ZStack {
+                Circle().stroke(Theme.ink.opacity(0.1), lineWidth: 5)
+                Circle()
+                    .trim(from: 0, to: shown)
+                    .stroke(Theme.ink, style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                Image(systemName: symbol).font(.system(size: 16, weight: .medium))
             }
-            .frame(width: 110, height: 6)
+            .frame(width: 54, height: 54)
+            Text(label).font(.system(size: 11, weight: .semibold)).foregroundStyle(Theme.inkSoft)
         }
+        .frame(maxWidth: .infinity)
+        .onAppear { withAnimation(.smooth(duration: 1.0).delay(0.3)) { shown = Double(max(0.04, value)) } }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(title): \(Int(value * 100)) out of 100")
+        .accessibilityLabel("\(label): \(Int(value * 100)) out of 100")
     }
 }
