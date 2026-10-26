@@ -35,7 +35,7 @@ nonisolated enum FaceReferenceStore {
             }
         }
         let usable = prints.filter { !$0.isEmpty }
-        try JSONEncoder().encode(MeReference(prints: usable)).write(to: referenceFile)
+        try JSONEncoder().encode(MeReference(prints: usable, version: MeReference.currentVersion)).write(to: referenceFile)
     }
 
     static func faceImageURLs() -> [URL] {
