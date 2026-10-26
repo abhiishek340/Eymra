@@ -43,27 +43,51 @@ struct StoriesView: View {
     }
 }
 
+/// A past story as a photo mosaic: one big photo, two small, the title over the image.
 struct StoryRow: View {
     let run: RunResult
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 6) {
-                ForEach(run.picks.prefix(4)) { pick in
-                    PhotoThumbnail(photoID: pick.photoID, longEdge: 260)
-                        .aspectRatio(0.8, contentMode: .fit)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        let ids = run.picks.map(\.photoID)
+        ZStack(alignment: .bottomLeading) {
+            HStack(spacing: 4) {
+                tile(ids.first)
+                VStack(spacing: 4) {
+                    tile(ids.dropFirst().first)
+                    tile(ids.dropFirst(2).first)
                 }
+                .frame(width: 110)
             }
-            VStack(alignment: .leading, spacing: 4) {
+            .frame(height: 210)
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            LinearGradient(colors: [.clear, .black.opacity(0.55)], startPoint: .center, endPoint: .bottom)
+                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                .allowsHitTesting(false)
+            VStack(alignment: .leading, spacing: 6) {
                 Text(run.title.isEmpty ? String(localized: "Your story") : run.title)
-                    .font(.system(size: 19, weight: .semibold, design: .serif))
-                Text("\(run.picks.count) photos · \(PlatformPreset.preset(run.config.platform).name) · \(run.createdAt.formatted(.relative(presentation: .named)))")
-                    .font(.system(size: 13)).foregroundStyle(Theme.inkSoft)
+                    .font(.system(size: 21, weight: .semibold, design: .serif))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                HStack(spacing: 10) {
+                    Label("\(run.picks.count)", systemImage: "photo.stack")
+                    Label(PlatformPreset.preset(run.config.platform).shortName, systemImage: PlatformPreset.preset(run.config.platform).symbol)
+                    Text(run.createdAt, format: .relative(presentation: .named))
+                }
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.85))
             }
-            .padding(.horizontal, 4)
+            .padding(16)
         }
-        .padding(12)
-        .glassCard(cornerRadius: 26)
+        .padding(6)
+        .glassCard(cornerRadius: 30)
+        .accessibilityElement(children: .combine)
+    }
+
+    @ViewBuilder private func tile(_ id: String?) -> some View {
+        if let id {
+            PhotoThumbnail(photoID: id, longEdge: 500)
+        } else {
+            Rectangle().fill(Theme.ink.opacity(0.06))
+        }
     }
 }

@@ -64,41 +64,77 @@ struct OnboardingFlow: View {
 
 struct WelcomeStep: View {
     let next: () -> Void
-    @State private var appear = false
 
     var body: some View {
         VStack(spacing: 0) {
             Spacer()
+            FloatingPhotos()
+                .frame(height: 280)
+                .riseIn(delay: 0.1)
             Text("Eymra")
-                .font(Theme.display(60))
-                .revealOnAppear(delay: 0.2, duration: 1.6)
+                .font(Theme.display(58))
+                .revealOnAppear(delay: 0.5, duration: 1.4)
+                .padding(.top, 20)
             Text("Your best moments, picked for you.")
-                .font(.system(size: 18, design: .serif))
+                .font(.system(size: 17, design: .serif))
                 .foregroundStyle(Theme.inkSoft)
-                .padding(.top, 8)
-                .revealOnAppear(delay: 1.0, duration: 1.2)
+                .padding(.top, 6)
+                .revealOnAppear(delay: 1.1, duration: 1.0)
             Spacer()
-            VStack(spacing: 14) {
-                Text("“Every day out has a story. We'll find the photos that tell it.”")
-                    .font(.system(size: 22, weight: .medium, design: .serif))
-                    .multilineTextAlignment(.center)
-                Text("You took hundreds of photos. Eymra looks through them and picks the few worth posting: the best of each moment, no repeats, a bit of everything.")
-                    .font(.system(size: 15))
-                    .foregroundStyle(Theme.inkSoft)
-                    .multilineTextAlignment(.center)
-            }
-            .padding(24)
-            .glassCard()
-            .opacity(appear ? 1 : 0)
-            .offset(y: appear ? 0 : 20)
-            .animation(.smooth(duration: 1.2).delay(1.4), value: appear)
             Button("Let's begin", action: next)
                 .buttonStyle(.glassPrimary)
-                .padding(.top, 22)
+                .riseIn(delay: 1.4)
                 .accessibilityIdentifier("onboardingStart")
         }
         .padding(24)
-        .onAppear { withAnimation(.easeOut(duration: 1.2)) { appear = true } }
+    }
+}
+
+/// An illustration of photos floating up out of a pile: little skies, hills and suns, drawn, not bundled.
+struct FloatingPhotos: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var lift = false
+
+    private struct Card { var x: CGFloat; var y: CGFloat; var angle: Double; var sky: Color; var ground: Color; var sun: Bool }
+    private let cards: [Card] = [
+        Card(x: -96, y: 30, angle: -14, sky: Color(red: 0.74, green: 0.85, blue: 0.95), ground: Color(red: 0.62, green: 0.78, blue: 0.60), sun: true),
+        Card(x: 96, y: 40, angle: 12, sky: Color(red: 0.96, green: 0.86, blue: 0.74), ground: Color(red: 0.80, green: 0.72, blue: 0.58), sun: false),
+        Card(x: 0, y: -10, angle: -2, sky: Color(red: 0.66, green: 0.80, blue: 0.94), ground: Color(red: 0.55, green: 0.72, blue: 0.56), sun: true),
+    ]
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(RadialGradient(colors: [.white.opacity(0.8), .white.opacity(0)], center: .center, startRadius: 0, endRadius: 150))
+                .frame(width: 300, height: 300)
+            ForEach(cards.indices, id: \.self) { i in
+                let c = cards[i]
+                miniPhoto(c)
+                    .rotationEffect(.degrees(c.angle + (lift ? (i.isMultiple(of: 2) ? 2 : -2) : 0)))
+                    .offset(x: c.x, y: c.y + (lift ? -8 : 4) * (i == 2 ? 1.4 : 1))
+                    .zIndex(i == 2 ? 1 : 0)
+            }
+        }
+        .onAppear {
+            guard !reduceMotion && !Theme.stillMotion else { return }
+            withAnimation(.easeInOut(duration: 3.4).repeatForever(autoreverses: true)) { lift = true }
+        }
+        .accessibilityHidden(true)
+    }
+
+    private func miniPhoto(_ c: Card) -> some View {
+        ZStack(alignment: .bottom) {
+            c.sky
+            Ellipse().fill(c.ground).frame(width: 200, height: 110).offset(y: 50)
+            if c.sun {
+                Circle().fill(Color(red: 1, green: 0.84, blue: 0.45)).frame(width: 26, height: 26).offset(x: 34, y: -96)
+            }
+        }
+        .frame(width: 128, height: 164)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .padding(6)
+        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(.white))
+        .shadow(color: .black.opacity(0.12), radius: 16, y: 10)
     }
 }
 
@@ -245,40 +281,42 @@ struct QuestionStep: View {
             Spacer()
             Text(q.title).font(Theme.title(32))
                 .revealOnAppear()
-            Text(q.subtitle).font(.system(size: 15)).foregroundStyle(Theme.inkSoft)
-                .revealOnAppear(delay: 0.4)
-            VStack(spacing: 12) {
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
                 ForEach(Array(q.options.enumerated()), id: \.element.id) { optionIndex, option in
+                    let selected = option.isSelected(app.account.prefs)
                     Button {
                         option.apply(&app.account.prefs)
                         Task {
-                            try? await Task.sleep(for: .milliseconds(250))
+                            try? await Task.sleep(for: .milliseconds(300))
                             next()
                         }
                     } label: {
-                        HStack(spacing: 14) {
+                        VStack(spacing: 14) {
                             Image(systemName: option.symbol)
-                                .font(.system(size: 18))
-                                .frame(width: 40, height: 40)
-                                .glassCapsule(interactive: false)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(option.title).font(.system(size: 17, weight: .semibold, design: .serif))
-                                Text(option.detail).font(.system(size: 13)).foregroundStyle(Theme.inkSoft)
-                            }
-                            Spacer()
-                            if option.isSelected(app.account.prefs) {
-                                Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.ink)
-                            }
+                                .font(.system(size: 30, weight: .regular))
+                                .foregroundStyle(selected ? Theme.onInk : Theme.ink)
+                                .frame(width: 66, height: 66)
+                                .background(Circle().fill(selected ? AnyShapeStyle(Theme.ink) : AnyShapeStyle(Theme.ink.opacity(0.07))))
+                                .scaleEffect(selected ? 1.06 : 1)
+                            Text(option.title)
+                                .font(.system(size: 15, weight: .semibold, design: .serif))
+                                .multilineTextAlignment(.center)
+                                .lineLimit(2)
+                                .minimumScaleFactor(0.85)
                         }
-                        .padding(14)
-                        .contentShape(Rectangle())
-                        .glassCard(cornerRadius: 22, tint: option.isSelected(app.account.prefs) ? .white.opacity(0.5) : nil)
-                        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous)
-                            .strokeBorder(Theme.ink.opacity(option.isSelected(app.account.prefs) ? 0.9 : 0), lineWidth: 1.5))
+                        .frame(maxWidth: .infinity, minHeight: 156)
+                        .padding(.horizontal, 10)
+                        .contentShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+                        .glassCard(cornerRadius: 26, tint: selected ? .white.opacity(0.5) : nil)
+                        .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous)
+                            .strokeBorder(Theme.ink.opacity(selected ? 0.9 : 0), lineWidth: 1.5))
+                        .animation(Theme.Motion.pop, value: selected)
                     }
                     .buttonStyle(PressableStyle())
-                    .sensoryFeedback(.selection, trigger: option.isSelected(app.account.prefs))
-                    .riseIn(delay: 0.3 + Double(optionIndex) * 0.08)
+                    .sensoryFeedback(.selection, trigger: selected)
+                    .riseIn(delay: 0.25 + Double(optionIndex) * 0.07)
+                    .accessibilityHint(option.detail)
+                    .accessibilityAddTraits(selected ? .isSelected : [])
                     .accessibilityIdentifier("answer-\(option.id)")
                 }
             }
@@ -298,22 +336,17 @@ struct FaceIntroStep: View {
     var body: some View {
         VStack(spacing: 20) {
             Spacer()
-            ZStack {
-                Circle().fill(.white.opacity(0.25)).frame(width: 150, height: 150).blur(radius: 10)
-                Image(systemName: "face.dashed")
-                    .font(.system(size: 72, weight: .ultraLight))
+            FaceOrbit()
+                .frame(height: 200)
+                .riseIn(delay: 0.1)
+            Text("Help Eymra find you").font(Theme.title(30)).multilineTextAlignment(.center)
+                .revealOnAppear(delay: 0.3)
+            HStack(spacing: 10) {
+                factChip("person.2", "Tell you apart")
+                factChip("camera.viewfinder", "5 quick angles")
+                factChip("lock", "Stays on phone")
             }
-            Text("Help Eymra find you").font(Theme.title(32)).multilineTextAlignment(.center)
-                .revealOnAppear()
-            VStack(alignment: .leading, spacing: 12) {
-                Label("Your friends are in lots of your photos. To pick the ones you want to post, Eymra needs to know which face is yours.", systemImage: "person.2")
-                Label("A quick look at your face from a few angles is all it takes.", systemImage: "camera.viewfinder")
-                Label("It stays on this phone and is never uploaded.", systemImage: "lock")
-            }
-            .font(.system(size: 15))
-            .labelStyle(DreamLabelStyle())
-            .padding(20)
-            .glassCard()
+            .riseIn(delay: 0.5)
             Spacer()
             if FaceScanner.hasCamera {
                 Button("Use the camera", action: useCamera)
@@ -333,6 +366,44 @@ struct FaceIntroStep: View {
                 .accessibilityIdentifier("faceSkip")
         }
         .padding(24)
+    }
+}
+
+extension FaceIntroStep {
+    fileprivate func factChip(_ symbol: String, _ text: LocalizedStringKey) -> some View {
+        VStack(spacing: 8) {
+            Image(systemName: symbol).font(.system(size: 20, weight: .regular))
+            Text(text).font(.system(size: 11, weight: .semibold)).multilineTextAlignment(.center).foregroundStyle(Theme.inkSoft)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 14)
+        .glassCard(cornerRadius: 20)
+    }
+}
+
+/// A face with five dots circling it, one per angle of the scan.
+struct FaceOrbit: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var turn = 0.0
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(RadialGradient(colors: [.white.opacity(0.75), .white.opacity(0)], center: .center, startRadius: 0, endRadius: 110))
+                .frame(width: 220, height: 220)
+            Circle().stroke(Theme.ink.opacity(0.12), style: StrokeStyle(lineWidth: 1.5, dash: [3, 6])).frame(width: 150, height: 150)
+            Image(systemName: "face.smiling").font(.system(size: 64, weight: .ultraLight))
+            ForEach(0..<5, id: \.self) { i in
+                Circle().fill(Theme.ink).frame(width: 9, height: 9)
+                    .offset(y: -75)
+                    .rotationEffect(.degrees(Double(i) * 72 + turn))
+            }
+        }
+        .onAppear {
+            guard !reduceMotion && !Theme.stillMotion else { return }
+            withAnimation(.linear(duration: 18).repeatForever(autoreverses: false)) { turn = 360 }
+        }
+        .accessibilityHidden(true)
     }
 }
 
