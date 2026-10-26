@@ -287,7 +287,7 @@ for (index, s) in shots.enumerated() {
                           isFavorite: s.favorite, pixelWidth: width, pixelHeight: height,
                           isScreenshot: s.kind == .screenshot, isAnimated: false, burstIdentifier: nil,
                           moment: s.moment, kind: s.kind.rawValue))
-    features.append(Feature(photoID: id, schemaVersion: 3, featurePrint: print, featurePrintRevision: 2,
+    features.append(Feature(photoID: id, schemaVersion: 4, featurePrint: print, featurePrintRevision: 2,
                             aestheticScore: aesthetic, isUtility: s.kind == .receipt, faces: faces,
                             humanBoxes: faces.map { Box(x: $0.box.x - 0.05, y: 0.25, width: $0.box.width + 0.1, height: 0.7) },
                             saliencyBox: saliency, labels: labels,

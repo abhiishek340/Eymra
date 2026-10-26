@@ -17,10 +17,13 @@ nonisolated struct FeatureExtractor: FeatureExtracting {
     func extract(_ record: PhotoRecord, from source: any PhotoSource, allowNetwork: Bool) async throws -> FeatureRecord {
         try Task.checkCancellation()
         let image = try await source.image(for: record.id, longEdge: Tuning.renditionLongEdge, allowNetwork: allowNetwork)
-        return try await analyse(image, photoID: record.id)
+        let sharper: @Sendable () async -> CGImage? = {
+            try? await source.image(for: record.id, longEdge: Tuning.zoomLongEdge, allowNetwork: allowNetwork)
+        }
+        return try await analyse(image, photoID: record.id, zoom: sharper)
     }
 
-    func analyse(_ image: CGImage, photoID: String) async throws -> FeatureRecord {
+    func analyse(_ image: CGImage, photoID: String, zoom: (@Sendable () async -> CGImage?)? = nil) async throws -> FeatureRecord {
         let handler = ImageRequestHandler(image, orientation: .up)
         // Core pack: one call so the image is prepared once.
         let print: FeaturePrintObservation?
@@ -58,7 +61,7 @@ nonisolated struct FeatureExtractor: FeatureExtracting {
         }
         let expressions = faces.isEmpty ? [] : Self.expressions(in: image)
 
-        let facePrints = await FaceEmbedder.signatures(for: faces, in: image)
+        let facePrints = await FaceEmbedder.signatures(for: faces, in: image, zoom: zoom)
         let faceFeatures: [FaceFeature] = faces.enumerated().map { i, face in
             let box = Self.upperLeft(face.boundingBox.cgRect)
             let match = expressions.max { $0.box.intersectionArea(box) < $1.box.intersectionArea(box) }

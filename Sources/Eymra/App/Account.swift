@@ -1,5 +1,6 @@
 import CoreGraphics
 import Foundation
+import ImageIO
 import Observation
 import os
 
@@ -130,6 +131,22 @@ final class Account {
         meReference = reference
         faceImageURLs = FaceReferenceStore.faceImageURLs()
         if meReference != nil { faceNeedsRedo = false }
+        if let r = reference, r.version != MeReference.currentVersion { Task { await remakeReference() } }
+    }
+
+    /// Re-reads the saved face crops with the current method, so improvements don't need a new scan.
+    private func remakeReference() async {
+        var crops: [CGImage] = [], prints: [[Float]] = []
+        for url in faceImageURLs {
+            guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+                  let image = CGImageSourceCreateImageAtIndex(source, 0, nil),
+                  let face = await FaceEmbedder.largestFace(in: image), !face.signature.isEmpty else { continue }
+            crops.append(image)
+            prints.append(face.signature)
+        }
+        guard !prints.isEmpty else { return }
+        Self.log.info("Re-made \(prints.count) face references with the current method")
+        saveFace(crops: crops, prints: prints)
     }
 
     // MARK: Storage

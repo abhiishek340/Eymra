@@ -124,6 +124,11 @@ nonisolated struct UserPrefs: Codable, Sendable, Hashable {
 /// Face prints of the user from the face scan or chosen photos. Stays on the phone.
 nonisolated struct MeReference: Codable, Sendable, Hashable {
     var prints: [[Float]]
+    /// How the prints were made; older ones are re-made from the saved face crops.
+    var version: Int? = nil
+
+    /// 2: zoomed, re-detected face crops with the mirror trick.
+    static let currentVersion = 2
 }
 
 nonisolated enum ExclusionTag: Codable, Sendable, Hashable {
@@ -198,7 +203,7 @@ nonisolated struct FaceFeature: Codable, Sendable, Hashable {
 
 nonisolated enum FeatureSchema {
     /// Bump whenever stage 2 changes what it stores.
-    static let version = 3
+    static let version = 4
 }
 
 nonisolated struct FeatureRecord: Codable, Sendable, Hashable {
