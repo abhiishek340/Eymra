@@ -28,6 +28,15 @@ nonisolated struct PlatformPreset: Codable, Sendable, Hashable, Identifiable {
 
     var primaryRatio: AspectRatio { ratios.first ?? .square }
 
+    /// The app "Open …" launches.
+    var appName: String {
+        switch id {
+        case .instagramCarousel, .instagramSingle, .reels: "Instagram"
+        case .facebook: "Facebook"
+        case .x: "X"
+        }
+    }
+
     static let all: [PlatformPreset] = [
         PlatformPreset(id: .instagramCarousel, name: "Instagram", defaultCount: 10, maxCount: 20,
                        ratios: [.portrait4x5, .square], ordering: .coverThenStory,

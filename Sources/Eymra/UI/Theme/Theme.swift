@@ -2,10 +2,26 @@ import SwiftUI
 
 /// Eymra's look: a soft, slowly moving sky behind clear glass, serif headlines, calm ink-coloured text.
 enum Theme {
+    /// UI tests launched with -stillMotion pause the endless decorative motion (sky, orbit, shimmer), the same
+    /// way Reduce Motion does, so the app settles between taps. Finite animations still run.
+    static let stillMotion = ProcessInfo.processInfo.arguments.contains("-stillMotion")
+
     /// Main text on glass.
     static let ink = Color("Ink")
-    static let inkSoft = Color("Ink").opacity(0.68)
-    static let inkFaint = Color("Ink").opacity(0.45)
+    static let inkSoft = Color("Ink").opacity(0.66)
+    static let inkFaint = Color("Ink").opacity(0.42)
+    /// Text and icons on the solid ink button.
+    static let onInk = Color("OnInk")
+
+    /// Spring presets, so every press and move feels like the same app.
+    enum Motion {
+        /// Quick and exact: toggles, chips, tab pill.
+        static let snap = Animation.spring(response: 0.28, dampingFraction: 0.86)
+        /// A little bounce: buttons, cards arriving.
+        static let pop = Animation.spring(response: 0.42, dampingFraction: 0.72)
+        /// Calm and soft: screens and large layout changes.
+        static let settle = Animation.spring(response: 0.62, dampingFraction: 0.9)
+    }
 
     static func title(_ size: CGFloat = 34) -> Font { .system(size: size, weight: .semibold, design: .serif) }
     static func display(_ size: CGFloat = 44) -> Font { .system(size: size, weight: .medium, design: .serif) }
@@ -25,8 +41,8 @@ struct DreamBackground: View {
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1 / 24, paused: !animated || reduceMotion || scenePhase != .active)) { context in
-            let t = animated && !reduceMotion ? context.date.timeIntervalSinceReferenceDate : 0
+        TimelineView(.animation(minimumInterval: 1 / 24, paused: !animated || reduceMotion || Theme.stillMotion || scenePhase != .active)) { context in
+            let t = animated && !reduceMotion && !Theme.stillMotion ? context.date.timeIntervalSinceReferenceDate : 0
             ZStack {
                 MeshGradient(width: 3, height: 3, points: points(t), colors: colors)
                 orbs(t)
@@ -46,19 +62,48 @@ struct DreamBackground: View {
         ]
     }
 
+    /// The sky follows the time of day (like a real one): soft cream mornings, clear pale middays, warm golden
+    /// evenings and a deep night. Everything is low-saturation so glass and text stay calm and easy to read. No purple.
     private var colors: [Color] {
-        if scheme == .dark {
-            return [
-                Color(red: 0.10, green: 0.14, blue: 0.30), Color(red: 0.16, green: 0.20, blue: 0.40), Color(red: 0.22, green: 0.16, blue: 0.36),
-                Color(red: 0.12, green: 0.24, blue: 0.36), Color(red: 0.30, green: 0.24, blue: 0.42), Color(red: 0.36, green: 0.22, blue: 0.34),
-                Color(red: 0.08, green: 0.20, blue: 0.22), Color(red: 0.12, green: 0.26, blue: 0.24), Color(red: 0.18, green: 0.18, blue: 0.26),
-            ]
+        if scheme == .dark { return Self.palette(.night) }
+        return Self.palette(TimeOfDay.now)
+    }
+
+    enum TimeOfDay {
+        case morning, day, evening, night
+
+        static var now: TimeOfDay {
+            switch Calendar.current.component(.hour, from: Date()) {
+            case 5..<11: .morning
+            case 11..<17: .day
+            case 17..<21: .evening
+            default: .night
+            }
         }
-        return [
-            Color(red: 0.55, green: 0.74, blue: 0.95), Color(red: 0.70, green: 0.84, blue: 0.98), Color(red: 0.80, green: 0.80, blue: 0.97),
-            Color(red: 0.78, green: 0.90, blue: 0.96), Color(red: 0.98, green: 0.91, blue: 0.86), Color(red: 0.93, green: 0.84, blue: 0.93),
-            Color(red: 0.62, green: 0.80, blue: 0.62), Color(red: 0.76, green: 0.87, blue: 0.68), Color(red: 0.86, green: 0.90, blue: 0.74),
-        ]
+    }
+
+    private static func c(_ hex: UInt32) -> Color {
+        Color(red: Double((hex >> 16) & 0xFF) / 255, green: Double((hex >> 8) & 0xFF) / 255, blue: Double(hex & 0xFF) / 255)
+    }
+
+    /// 3×3 mesh, top row sky, middle the horizon haze, bottom the ground.
+    static func palette(_ time: TimeOfDay) -> [Color] {
+        let hex: [UInt32]
+        switch time {
+        case .morning: hex = [0xD6E6F2, 0xE4EDF4, 0xDCE7F1,
+                              0xF5EDE2, 0xFBF5EC, 0xF1EFE7,
+                              0xDDE8D8, 0xE7EDDD, 0xD8E5D3]
+        case .day:     hex = [0xBFD9EF, 0xD3E6F5, 0xC8DFF2,
+                              0xEAF2F5, 0xF7F9F7, 0xE7F0F2,
+                              0xCFE2CA, 0xDCE9D4, 0xCBE0C6]
+        case .evening: hex = [0xE8D5C6, 0xF0DFD0, 0xDCD9D6,
+                              0xF7ECDF, 0xFCF4EA, 0xF2E9DD,
+                              0xDCE1D2, 0xE5E6D6, 0xD5DCCD]
+        case .night:   hex = [0x0D1621, 0x111C28, 0x0F1923,
+                              0x152230, 0x1A2833, 0x14212B,
+                              0x0E1B17, 0x12211B, 0x0F1A16]
+        }
+        return hex.map(c)
     }
 
     private func light(_ color: Color, _ opacity: Double, size: CGFloat) -> some View {
@@ -179,6 +224,7 @@ private struct ShimmerModifier: ViewModifier {
                 }
             }
             .onAppear {
+                guard !Theme.stillMotion else { return }
                 withAnimation(.linear(duration: 2.2).repeatForever(autoreverses: false)) { phase = 1 }
             }
     }
@@ -195,15 +241,18 @@ extension View {
             self.glassEffect(Glass.regular.tint(tint).interactive(interactive), in: shape)
         } else {
             self
-                .background(.ultraThinMaterial, in: shape)
+                .background(.thinMaterial, in: shape)
                 .background(tint.map { shape.fill($0) })
-                .overlay(shape.strokeBorder(.white.opacity(0.45), lineWidth: 0.8))
-                .shadow(color: .black.opacity(0.08), radius: 18, y: 8)
+                .overlay(shape.strokeBorder(LinearGradient(colors: [.white.opacity(0.7), .white.opacity(0.15)],
+                                                           startPoint: .top, endPoint: .bottom), lineWidth: 0.8))
+                .shadow(color: .black.opacity(0.06), radius: 20, y: 10)
         }
     }
 
+    /// Glass pill. Not interactive by default: on iOS 26 an interactive glass effect inside a Button's label can take
+    /// the touch for itself and the button never fires (seen with back buttons on device). Buttons do their own press effect.
     @ViewBuilder
-    func glassCapsule(tint: Color? = nil, interactive: Bool = true) -> some View {
+    func glassCapsule(tint: Color? = nil, interactive: Bool = false) -> some View {
         if #available(iOS 26.0, *) {
             self.glassEffect(Glass.regular.tint(tint).interactive(interactive), in: Capsule())
         } else {
@@ -229,14 +278,20 @@ struct GlassPrimaryButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 18, weight: .semibold, design: .serif))
-            .foregroundStyle(Theme.ink)
+            .font(.system(size: 17, weight: .semibold))
+            .foregroundStyle(Theme.onInk)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 18)
-            .glassCapsule(tint: .white.opacity(0.55))
+            .background {
+                Capsule().fill(Theme.ink)
+                    .overlay(Capsule().fill(LinearGradient(colors: [.white.opacity(0.16), .clear], startPoint: .top, endPoint: .center)))
+                    .shadow(color: .black.opacity(configuration.isPressed ? 0.10 : 0.22),
+                            radius: configuration.isPressed ? 6 : 16, y: configuration.isPressed ? 3 : 8)
+            }
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
-            .opacity(isEnabled ? 1 : 0.45)
-            .animation(.spring(duration: 0.25), value: configuration.isPressed)
+            .opacity(isEnabled ? 1 : 0.35)
+            .animation(Theme.Motion.snap, value: configuration.isPressed)
+            .sensoryFeedback(.impact(weight: .light), trigger: configuration.isPressed) { _, pressed in pressed }
     }
 }
 
@@ -244,13 +299,14 @@ struct GlassPrimaryButtonStyle: ButtonStyle {
 struct GlassButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 16, weight: .medium))
+            .font(.system(size: 15, weight: .medium))
             .foregroundStyle(Theme.ink)
             .padding(.horizontal, 18)
             .padding(.vertical, 12)
-            .glassCapsule()
+            .glassCapsule(tint: .white.opacity(configuration.isPressed ? 0.35 : 0.12))
             .scaleEffect(configuration.isPressed ? 0.96 : 1)
-            .animation(.spring(duration: 0.25), value: configuration.isPressed)
+            .animation(Theme.Motion.snap, value: configuration.isPressed)
+            .sensoryFeedback(.selection, trigger: configuration.isPressed) { _, pressed in pressed }
     }
 }
 
@@ -275,10 +331,14 @@ struct GlassChip: View {
                 if let systemImage { Image(systemName: systemImage).font(.system(size: 14, weight: .medium)) }
                 Text(title).font(.system(size: 15, weight: selected ? .semibold : .regular))
             }
-            .foregroundStyle(Theme.ink.opacity(selected ? 1 : 0.75))
+            .foregroundStyle(selected ? Theme.onInk : Theme.ink.opacity(0.8))
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
-            .glassCapsule(tint: selected ? .white.opacity(0.7) : nil)
+            .background {
+                if selected { Capsule().fill(Theme.ink).transition(.scale(scale: 0.9).combined(with: .opacity)) }
+            }
+            .glassCapsule(tint: selected ? nil : .white.opacity(0.1))
+            .animation(Theme.Motion.snap, value: selected)
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(selected ? .isSelected : [])
@@ -331,4 +391,64 @@ struct DreamHeading: View {
             .foregroundStyle(Theme.ink)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
+}
+
+// MARK: - Toast and back gesture
+
+/// A short message bubble at the bottom of the screen; clears itself after a few seconds.
+struct ToastOverlay: View {
+    @Binding var message: String?
+    var bottomPadding: CGFloat = 110
+
+    var body: some View {
+        VStack {
+            Spacer()
+            if let message {
+                Text(message)
+                    .font(.system(size: 15, weight: .medium))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 18).padding(.vertical, 12)
+                    .glassCapsule(tint: .white.opacity(0.5), interactive: false)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, bottomPadding)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .task(id: message) {
+                        try? await Task.sleep(for: .seconds(2.8))
+                        withAnimation { self.message = nil }
+                    }
+                    .accessibilityIdentifier("toast")
+            }
+        }
+        .animation(.spring(duration: 0.4), value: message)
+        .allowsHitTesting(false)
+    }
+}
+
+/// Swipe right from the left edge to go back, like a navigation stack. The screen follows the finger.
+struct EdgeSwipeBack: ViewModifier {
+    let action: () -> Void
+    @GestureState private var drag: CGFloat = 0
+
+    func body(content: Content) -> some View {
+        content
+            .offset(x: max(0, drag) * 0.6)
+            .overlay(alignment: .leading) {
+                Color.clear
+                    .frame(width: 28)
+                    .contentShape(Rectangle())
+                    .gesture(
+                        DragGesture(minimumDistance: 12, coordinateSpace: .global)
+                            .updating($drag) { value, state, _ in state = value.translation.width }
+                            .onEnded { value in
+                                if value.translation.width > 90 || value.predictedEndTranslation.width > 220 { action() }
+                            }
+                    )
+                    .accessibilityHidden(true)
+            }
+            .animation(.interactiveSpring(duration: 0.3), value: drag)
+    }
+}
+
+extension View {
+    func edgeSwipeBack(_ action: @escaping () -> Void) -> some View { modifier(EdgeSwipeBack(action: action)) }
 }

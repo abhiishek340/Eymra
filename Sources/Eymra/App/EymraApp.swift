@@ -120,11 +120,11 @@ struct GlassTabBar: View {
                         Image(systemName: tab.symbol).font(.system(size: 18, weight: selection == tab ? .semibold : .regular))
                         Text(tab.title).font(.system(size: 11, weight: .medium))
                     }
-                    .foregroundStyle(Theme.ink.opacity(selection == tab ? 1 : 0.55))
+                    .foregroundStyle(selection == tab ? Theme.onInk : Theme.ink.opacity(0.55))
                     .frame(width: 84, height: 52)
                     .background {
                         if selection == tab {
-                            Capsule().fill(.white.opacity(0.45)).matchedGeometryEffect(id: "pill", in: pill)
+                            Capsule().fill(Theme.ink).matchedGeometryEffect(id: "pill", in: pill)
                         }
                     }
                     .contentShape(Capsule())
@@ -136,6 +136,6 @@ struct GlassTabBar: View {
         }
         .padding(6)
         .glassCapsule(interactive: false)
-        .animation(.spring(duration: 0.4, bounce: 0.25), value: selection)
+        .animation(Theme.Motion.pop, value: selection)
     }
 }

@@ -30,9 +30,12 @@ final class Settings {
 
     var apiKey: String? { Keychain.read(Self.keyAccount) }
 
-    func setAPIKey(_ key: String) {
-        Keychain.write(key.trimmingCharacters(in: .whitespacesAndNewlines), account: Self.keyAccount)
+    /// Returns false when the key couldn't be stored.
+    @discardableResult
+    func setAPIKey(_ key: String) -> Bool {
+        let ok = Keychain.write(key.trimmingCharacters(in: .whitespacesAndNewlines), account: Self.keyAccount)
         hasAPIKey = !(Keychain.read(Self.keyAccount) ?? "").isEmpty
+        return ok
     }
 
     /// Whether iCloud originals may be downloaded right now.

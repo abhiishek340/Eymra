@@ -24,7 +24,7 @@ final class SmokeTest: XCTestCase {
 
     @MainActor
     func testOnboarding() throws {
-        let app = launch(["-onboarding"])
+        let app = launch(["-onboarding", "-noGoogle"])
         XCTAssertTrue(app.buttons["onboardingStart"].waitForExistence(timeout: 10))
         sleep(2)
         screenshot(app, "01-welcome")
