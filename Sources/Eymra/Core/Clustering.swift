@@ -38,6 +38,8 @@ nonisolated enum Clustering {
     static func isDuplicate(_ a: String, _ b: String, gap: TimeInterval, features: [String: FeatureRecord]) -> Bool {
         guard let fa = features[a], let fb = features[b] else { return false }
         guard facesAgree(fa.faces.count, fb.faces.count) else { return false }
+        // Same spot, different person (you, then your friend in the same pose) is a different moment.
+        guard samePeople(fa.faces, fb.faces) else { return false }
         if let d = VectorMath.distance(fa.featurePrint, fb.featurePrint) {
             return d < Tuning.duplicateDistance
         }
@@ -45,6 +47,19 @@ nonisolated enum Clustering {
             return rms < Tuning.thumbDuplicateRMS && abs(gap) < Tuning.thumbDuplicateSeconds
         }
         return false
+    }
+
+    /// For solo and pair shots, every face that has a signature must find the same person in the other shot.
+    /// Faces without signatures (too small, no landmarks, Simulator) can't be compared, so they don't split a moment.
+    /// Groups of 3+ keep the count rule only: people shuffle, and a big group at one spot is one moment anyway.
+    static func samePeople(_ a: [FaceFeature], _ b: [FaceFeature]) -> Bool {
+        guard a.count <= 2, b.count <= 2, !a.isEmpty, !b.isEmpty else { return true }
+        let sa = a.map(\.print).filter { !$0.isEmpty }, sb = b.map(\.print).filter { !$0.isEmpty }
+        guard !sa.isEmpty, !sb.isEmpty else { return true }
+        let (small, large) = sa.count <= sb.count ? (sa, sb) : (sb, sa)
+        return small.allSatisfy { face in
+            large.contains { (Identity.similarity(face, $0) ?? -1) >= Tuning.samePersonSimilarity }
+        }
     }
 
     /// Face counts agree when identical, or both at least 3 and differing by at most 1.
