@@ -146,7 +146,13 @@ struct PickDetailSheet: View {
         let ranked = c.runnerUpIDs + c.memberIDs.filter { $0 != c.winnerID && !c.runnerUpIDs.contains($0) }
         let picked = Set(r.picks.map(\.photoID))
         // Hard rejects (blurry, eyes closed, too dark…) stay in "Other photos", not in the swap strip.
-        return ranked.filter { !picked.contains($0) && r.scores[$0] != nil && !(r.excluded[$0]?.isHardReject ?? false) }
+        // Never offer a photo of someone else as "the same shot" of you, or the other way round.
+        let withMe = r.scores[pickID]?.withMe
+        return ranked.filter { id in
+            guard !picked.contains(id), let score = r.scores[id], !(r.excluded[id]?.isHardReject ?? false) else { return false }
+            if let withMe, let other = score.withMe, other != withMe { return false }
+            return true
+        }
     }
 
 }

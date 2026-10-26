@@ -54,6 +54,10 @@ nonisolated enum Tuning {
     /// Same person at or above this cosine. LFW with 5-point alignment: different people's 99th percentile is 0.30,
     /// the published threshold 0.363; 0.40 trades a little recall for no false matches.
     static let meSimilarity: Float = 0.40
+    /// Two shots only count as the same moment if their faces are the same people: each face needs a match in the
+    /// other shot at or above this. Lower than meSimilarity, because the same person across a burst of poses can
+    /// drift a little; different people sit below 0.30 (LFW 99th percentile).
+    static let samePersonSimilarity: Float = 0.32
     /// During face setup, angles that don't look like the straight-on capture (below this) are dropped.
     static let enrolConsistency: Float = 0.35
 

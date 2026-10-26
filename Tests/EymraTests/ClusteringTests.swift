@@ -73,3 +73,40 @@ struct ClusteringTests {
         #expect(uf.find(0) != uf.find(1))
     }
 }
+
+struct SamePeopleTests {
+    private let you = Make.vector(0, offset: 0.05)
+    private let youAgain = Make.vector(0, offset: 0.12)
+    private let friend = Make.vector(6)
+
+    private func run(_ a: [Float], _ b: [Float]) -> [[String]] {
+        // Same spot (same feature print), one face each, 5 seconds apart.
+        let photos = [Make.photo("a", at: 0), Make.photo("b", at: 5)]
+        let features = ["a": Make.feature("a", print: Make.vector(3), faces: 1, facePrints: [a]),
+                        "b": Make.feature("b", print: Make.vector(3, offset: 0.02), faces: 1, facePrints: [b])]
+        let scene = Segmentation.makeScene(index: 0, members: photos, features: features)
+        return Clustering.clusters(in: scene, photos: Dictionary(uniqueKeysWithValues: photos.map { ($0.id, $0) }), features: features)
+    }
+
+    @Test func youAndYourFriendAtTheSameSpotAreDifferentMoments() {
+        #expect(run(you, friend).count == 2)
+    }
+
+    @Test func twoPosesOfYouAreOneMoment() {
+        #expect(run(you, youAgain) == [["a", "b"]])
+    }
+
+    @Test func facesWithoutSignaturesDoNotSplit() {
+        #expect(run([], []) == [["a", "b"]])
+        #expect(run(you, []) == [["a", "b"]])
+    }
+
+    @Test func pairsMustBeTheSamePair() {
+        let pairA = [FaceFeature(box: NormRect(x: 0, y: 0, width: 0.1, height: 0.1), captureQuality: 0.6, eyesClosed: false, smiling: false, print: you),
+                     FaceFeature(box: NormRect(x: 0.5, y: 0, width: 0.1, height: 0.1), captureQuality: 0.6, eyesClosed: false, smiling: false, print: friend)]
+        var pairB = pairA
+        pairB[1].print = Make.vector(9)
+        #expect(Clustering.samePeople(pairA, pairA))
+        #expect(!Clustering.samePeople(pairA, pairB))
+    }
+}
