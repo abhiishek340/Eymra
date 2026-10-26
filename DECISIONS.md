@@ -104,3 +104,13 @@ Each entry: what the spec said, what was done, why.
 - **Creative touches:** an editorial serif headline ("Find your *keepers*.") with the one italic word in ember; the user's photos as a scrapbook of tilted, white-bordered prints with a round dashed-edge "40 photos" sticker; story cards with a white number badge and an ember "Opens your story" label.
 - Chips and secondary buttons are solid pills with a hairline instead of glass, which reads crisper on paper.
 - **Grouping fix (round 5b):** near-duplicates now need the same people (face signature similarity ≥ 0.32 for solo and pair shots), so a friend posing at the same spot is not another take of you, and the runner-up strip never mixes a photo of you with one that isn't.
+
+## Round 7: find the face, then zoom in (2026-10-25)
+- **What recognises you:** Apple Vision finds faces and their eyes, nose and mouth; the face is aligned to a 112×112 template; OpenCV Zoo's SFace model (Apache-2.0, on device through Core ML) makes a 128-number signature; cosine similarity ≥ 0.40 against your profile counts as you. Claude is never involved and never sees a face.
+- **Problem:** faces were found and read on a 1024 px copy of each photo, and anything under 40 px there was skipped, so you in group and scenic shots was never recognised. Vision also often can't place landmarks on such small faces.
+- **Fix (the owner's tip):** find faces on the small copy; for any face under 160 px there, fetch a 3072 px copy, crop a square 2.2× the face, enlarge it to at least 400 px, re-detect the face in the crop, find its landmarks, then embed. The minimum readable face is now 24 px in the sharper copy.
+- **Mirror trick:** each face is embedded as it is and mirrored, and the two are averaged.
+- **Run references:** faces in a run that match your profile at ≥ 0.55 join your references for that run (up to 24), so a shot of you looking down can match a clear shot from the same day. Only matches to the profile itself are added, so it can't drift through look-alikes.
+- **Measured on the iPhone 17 Pro:** full chain on 200 LFW pairs 98.5 % (was 97.5 %), 0 false matches. Faces shrunk to about 25 to 30 px in a wide frame: all 100 read, 97 % correct, 0 false matches (before, all skipped). Python reference: 30 px faces 97.9 %, 20 px faces 95.4 %.
+- **Models considered:** stronger models (InsightFace ArcFace weights, EdgeFace, GhostFaceNets) carry non-commercial or negotiated licences, and the one ready-made Swift ArcFace package is a paid service. SFace stays, as it's accurate and can ship commercially.
+- Feature schema 4 (faces are re-read once). Saved face scans are re-made automatically from the stored face crops (`MeReference.version`), so no rescan is needed.

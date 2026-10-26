@@ -2,6 +2,7 @@ import CoreGraphics
 import Foundation
 import ImageIO
 import Testing
+import Vision
 @testable import Eymra
 
 private final class BundleToken {}
@@ -113,6 +114,50 @@ struct FaceRecognitionTests {
         let summary = "vision pairs \(total), accuracy \(Double(correct) / Double(total)), false matches \(falseMatches)"
         if ProcessInfo.processInfo.environment["EYMRA_REPORT"] == "1" { Issue.record(Comment(rawValue: "REPORT " + summary)) }
         #expect(Double(correct) / Double(total) >= 0.93, Comment(rawValue: summary))
+        #expect(falseMatches <= 1, Comment(rawValue: summary))
+    }
+
+    /// Real faces shrunk to the size they'd be in a wide or group shot (about 30 px in a 1024 px rendition).
+    /// Without zooming they're skipped or unreadable; with the find-then-zoom path they should still be recognised.
+    @Test func smallFacesAreRecognisedByZoomingIn() async throws {
+        guard let url = facePairsURL(), let data = try? Data(contentsOf: url) else { return }
+        struct Pair: Decodable { var a: String; var b: String; var same: Int }
+        let pairs = try JSONDecoder().decode([String: [Pair]].self, from: data)["pairs"] ?? []
+        func load(_ p: String) -> CGImage? {
+            guard let src = CGImageSourceCreateWithURL(imageURL(p, relativeTo: url) as CFURL, nil) else { return nil }
+            return CGImageSourceCreateImageAtIndex(src, 0, nil)
+        }
+        /// Puts the photo small in the middle of a big empty frame, as a face far away in a wide shot.
+        func wideShot(_ image: CGImage, scale: CGFloat) -> CGImage? {
+            let w = Int(CGFloat(image.width) / scale), h = Int(CGFloat(image.height) / scale)
+            guard let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
+                                      space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { return nil }
+            ctx.setFillColor(CGColor(gray: 0.6, alpha: 1)); ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
+            ctx.draw(image, in: CGRect(x: (w - image.width) / 2, y: (h - image.height) / 2, width: image.width, height: image.height))
+            return ctx.makeImage()
+        }
+        var correct = 0, falseMatches = 0, total = 0, unread = 0
+        for pair in pairs.prefix(100) {
+            guard let a = load(pair.a), let b = load(pair.b), let wide = wideShot(a, scale: 0.25),
+                  let reference = await FaceEmbedder.largestFace(in: b), !reference.signature.isEmpty else { continue }
+            // Find faces on a 1024 px rendition of the wide shot, then zoom into the full wide shot.
+            guard let rendition = Renderer.scale(wide, longEdge: 1024) else { continue }
+            let handler = ImageRequestHandler(rendition, orientation: .up)
+            guard let faces = try? await handler.perform(DetectFaceRectanglesRequest()), !faces.isEmpty else { unread += 1; continue }
+            let sharp = wide
+            let signatures = await FaceEmbedder.signatures(for: faces, in: rendition, zoom: { sharp })
+            guard let best = signatures.compactMap({ Identity.similarity($0, reference.signature) }).max() else { unread += 1; continue }
+            total += 1
+            let match = best >= Tuning.meSimilarity
+            if match == (pair.same == 1) { correct += 1 } else if match { falseMatches += 1 }
+        }
+        if total == 0 {
+            withKnownIssue("Vision face models unavailable on this Simulator") { Issue.record("no faces read") }
+            return
+        }
+        let summary = "small faces: \(total) pairs read, \(unread) unread, accuracy \(Double(correct) / Double(total)), false matches \(falseMatches)"
+        if ProcessInfo.processInfo.environment["EYMRA_REPORT"] == "1" { Issue.record(Comment(rawValue: "REPORT " + summary)) }
+        #expect(Double(correct) / Double(total) >= 0.9, Comment(rawValue: summary))
         #expect(falseMatches <= 1, Comment(rawValue: summary))
     }
 }

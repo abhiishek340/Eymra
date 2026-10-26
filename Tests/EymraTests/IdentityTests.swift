@@ -51,3 +51,17 @@ struct IdentityTests {
         #expect(Scoring.peopleScore(iBlink, meIndex: 0) < Scoring.peopleScore(theyBlink, meIndex: 0))
     }
 }
+
+struct RunReferenceTests {
+    @Test func confidentShotsFromTheRunJoinTheProfile() {
+        let profile = MeReference(prints: [Make.vector(0)])
+        let clearShotOfYou = Make.vector(0, offset: 0.3)        // similarity ≈ 0.96
+        let friend = Make.vector(6)                              // similarity 0
+        let blurryYou = Make.vector(0, offset: 1.6)              // similarity ≈ 0.53, just under "confident"
+        let reference = Identity.runReference(profile, faces: [clearShotOfYou, friend, blurryYou])
+        #expect(reference.prints.count == 2)
+        #expect(reference.prints.contains(clearShotOfYou))
+        #expect(!reference.prints.contains(friend))
+        #expect(!reference.prints.contains(blurryYou))
+    }
+}
