@@ -44,6 +44,7 @@ struct MagicView: View {
             Button("Stop") { vm.cancel() }
                 .buttonStyle(.glassSoft)
                 .opacity(gatherStart == nil ? 1 : 0)
+                .disabled(gatherStart != nil)
                 .accessibilityIdentifier("cancelRun")
                 .padding(.bottom, 30)
         }
@@ -62,7 +63,7 @@ struct MagicView: View {
     // MARK: Orbit
 
     private var orbit: some View {
-        TimelineView(.animation(paused: reduceMotion)) { context in
+        TimelineView(.animation(paused: reduceMotion || Theme.stillMotion)) { context in
             let now = context.date
             let t = now.timeIntervalSinceReferenceDate
             let gather = gatherStart.map { ease(min(1, now.timeIntervalSince($0) / 1.0)) } ?? 0
@@ -141,7 +142,7 @@ struct MagicView: View {
     // MARK: Light
 
     private func glow(t: Double, gather: Double) -> some View {
-        let breathe = reduceMotion ? 1 : 1 + 0.06 * sin(t * 1.4)
+        let breathe = reduceMotion || Theme.stillMotion ? 1 : 1 + 0.06 * sin(t * 1.4)
         return ZStack {
             Circle()
                 .fill(RadialGradient(colors: [.white.opacity(0.85), .white.opacity(0.25), .white.opacity(0)],

@@ -38,6 +38,7 @@ struct SetupView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     header
+                    if let last = vm.result { lastStoryCard(last).riseIn(delay: 0.05) }
                     if !app.access.isUsable { accessCard }
                     if app.access == .limited { limitedCard }
                     whenCard.riseIn(delay: 0.1)
@@ -89,6 +90,34 @@ struct SetupView: View {
         case 12..<17: return String(localized: "Good afternoon, \(name)")
         default: return String(localized: "Good evening, \(name)")
         }
+    }
+
+    private func lastStoryCard(_ run: RunResult) -> some View {
+        Button { vm.showResults = true } label: {
+            HStack(spacing: 12) {
+                HStack(spacing: -16) {
+                    ForEach(run.picks.prefix(3)) { pick in
+                        PhotoThumbnail(photoID: pick.photoID, longEdge: 200)
+                            .frame(width: 44, height: 56)
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(.white.opacity(0.8), lineWidth: 1))
+                    }
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Your last story").font(.system(size: 13)).foregroundStyle(Theme.inkSoft)
+                    Text(run.title.isEmpty ? String(localized: "Your story") : run.title)
+                        .font(.system(size: 17, weight: .semibold, design: .serif))
+                        .lineLimit(1)
+                }
+                Spacer()
+                Image(systemName: "chevron.forward").foregroundStyle(Theme.inkSoft)
+            }
+            .padding(14)
+            .contentShape(Rectangle())
+            .glassCard(cornerRadius: 24)
+        }
+        .buttonStyle(PressableStyle())
+        .accessibilityIdentifier("lastStoryCard")
     }
 
     private var accessCard: some View {

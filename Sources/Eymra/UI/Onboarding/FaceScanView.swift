@@ -259,6 +259,7 @@ struct FaceUploadView: View {
                 Button(action: cancel) { Image(systemName: "chevron.left") }
                     .buttonStyle(.glassSoft)
                     .accessibilityLabel("Back")
+                    .accessibilityIdentifier("faceUploadBack")
                 Spacer()
             }
             Spacer()

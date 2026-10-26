@@ -44,24 +44,9 @@ struct ResultsView: View {
                 .navigationTransition(.zoom(sourceID: pick.photoID, in: zoom))
         }
         .sheet(isPresented: $showShare) { ShareSheet(items: shareItems) }
-        .overlay(alignment: .bottom) {
-            if let toast = vm.toast {
-                Text(toast)
-                    .font(.system(size: 15, weight: .medium))
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 18).padding(.vertical, 12)
-                    .glassCapsule(tint: .white.opacity(0.5), interactive: false)
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 110)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .task {
-                        try? await Task.sleep(for: .seconds(2.8))
-                        withAnimation { vm.toast = nil }
-                    }
-                    .accessibilityIdentifier("toast")
-            }
-        }
-        .animation(.spring(duration: 0.4), value: vm.toast)
+        .overlay { if selected == nil { ToastOverlay(message: $vm.toast) } }
+        .edgeSwipeBack { vm.showResults = false }
+
     }
 
     private var topBar: some View {
@@ -83,6 +68,7 @@ struct ResultsView: View {
                     .glassCapsule()
             }
             .accessibilityLabel("More")
+            .accessibilityIdentifier("moreMenu")
         }
         .foregroundStyle(Theme.ink)
         .padding(.horizontal, 20)
@@ -120,6 +106,10 @@ struct ResultsView: View {
         }
     }
 
+    private var appName: String {
+        PlatformPreset.preset(vm.result?.config.platform ?? vm.platform).appName
+    }
+
     private var actionBar: some View {
         HStack(spacing: 10) {
             Button { Task { exporting = true; await vm.saveAlbum(); exporting = false } } label: {
@@ -128,13 +118,17 @@ struct ResultsView: View {
             .buttonStyle(.glassPrimary)
             .accessibilityIdentifier("saveAlbum")
             Button { vm.openPlatformApp() } label: {
-                Image(systemName: "arrow.up.forward.app")
-                    .font(.system(size: 19, weight: .semibold))
-                    .frame(width: 56, height: 56)
+                Label(String(localized: "Open \(appName)"), systemImage: "arrow.up.forward.app")
+                    .font(.system(size: 15, weight: .medium))
+                    .lineLimit(1)
+                    .fixedSize()
+                    .foregroundStyle(Theme.ink)
+                    .padding(.horizontal, 16)
+                    .frame(height: 56)
                     .glassCapsule()
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Open \(vm.result.map { PlatformPreset.preset($0.config.platform).name } ?? "")")
+            .accessibilityIdentifier("openPlatformApp")
         }
         .padding(.horizontal, 20)
         .padding(.bottom, 8)

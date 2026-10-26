@@ -23,6 +23,8 @@ nonisolated enum GoogleSignInError: Error, Sendable, Equatable {
 final class GoogleSignIn: NSObject, ASWebAuthenticationPresentationContextProviding {
     /// The iOS OAuth client ID from Info.plist (`GoogleClientID`, set from Config/Secrets.xcconfig).
     static var clientID: String? {
+        // UI tests can hide Google sign-in to walk the name-only path.
+        if ProcessInfo.processInfo.arguments.contains("-noGoogle") { return nil }
         let id = (Bundle.main.object(forInfoDictionaryKey: "GoogleClientID") as? String)?.trimmingCharacters(in: .whitespaces) ?? ""
         return id.hasSuffix(".apps.googleusercontent.com") ? id : nil
     }

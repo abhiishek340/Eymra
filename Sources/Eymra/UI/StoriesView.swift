@@ -27,6 +27,7 @@ struct StoriesView: View {
                 ForEach(Array((runs ?? []).enumerated()), id: \.element.id) { index, run in
                     Button { open(run) } label: { StoryRow(run: run) }
                         .buttonStyle(PressableStyle())
+                        .accessibilityIdentifier("storyRow-\(index)")
                         .riseIn(delay: 0.15 + Double(min(index, 5)) * 0.07)
                         .scrollTransition(.interactive, axis: .vertical) { content, phase in
                             content.scaleEffect(phase.isIdentity ? 1 : 0.95).opacity(phase.isIdentity ? 1 : 0.7)

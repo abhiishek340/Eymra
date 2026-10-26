@@ -5,6 +5,7 @@ struct PickDetailSheet: View {
     let pickID: String
     @Environment(\.dismiss) private var dismiss
     @State private var confirmHide = false
+    @GestureState private var pull: CGFloat = 0
 
     private var pick: Pick? { vm.result?.picks.first { $0.photoID == pickID } }
     private var cluster: Cluster? { vm.result?.cluster(containing: pickID) }
@@ -19,6 +20,22 @@ struct PickDetailSheet: View {
                             .aspectRatio(r.setRatio.value, contentMode: .fit)
                             .overlay { PhotoThumbnail(photoID: pick.photoID, longEdge: 1400) }
                             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                            // Pull the photo down to close.
+                            .offset(y: max(0, pull) * 0.5)
+                            .scaleEffect(1 - min(0.12, max(0, pull) / 1500))
+                            .gesture(
+                                DragGesture(minimumDistance: 10)
+                                    .updating($pull) { value, state, _ in state = value.translation.height }
+                                    .onEnded { value in
+                                        if value.translation.height > 110 || value.predictedEndTranslation.height > 260 { dismiss() }
+                                    }
+                            )
+                            .animation(.interactiveSpring(duration: 0.3), value: pull)
+                            .accessibilityElement()
+                            .accessibilityLabel("Photo \(pick.position)")
+                            .accessibilityHint("Swipe down to close")
+                            .accessibilityAddTraits(.isImage)
+                            .accessibilityIdentifier("detailPhoto")
                         VStack(alignment: .leading, spacing: 6) {
                             Text("Photo \(pick.position)").font(.system(size: 13, weight: .medium)).textCase(.uppercase).foregroundStyle(Theme.inkSoft)
                             Text(pick.reason).font(Theme.title(24))
@@ -44,6 +61,7 @@ struct PickDetailSheet: View {
                                             }
                                             .buttonStyle(.plain)
                                             .accessibilityLabel("Use this one instead")
+                                            .accessibilityIdentifier("runnerUp")
                                         }
                                     }
                                 }
@@ -79,12 +97,14 @@ struct PickDetailSheet: View {
                                     .frame(maxWidth: .infinity)
                             }
                             .buttonStyle(.glassSoft)
+                            .accessibilityIdentifier("copyForStory")
                             Button {
                                 confirmHide = true
                             } label: {
                                 Label("Never show this photo", systemImage: "eye.slash").frame(maxWidth: .infinity)
                             }
                             .buttonStyle(.glassSoft)
+                            .accessibilityIdentifier("hidePhoto")
                         }
                         if pick.isLocked {
                             Text("Kept photos stay when you pick again.")
@@ -107,6 +127,7 @@ struct PickDetailSheet: View {
             .padding(16)
         }
         .foregroundStyle(Theme.ink)
+        .overlay { ToastOverlay(message: $vm.toast, bottomPadding: 40) }
         .confirmationDialog("Hide this photo? Eymra won't pick it again. You can undo this in the You tab.",
                             isPresented: $confirmHide, titleVisibility: .visible) {
             Button("Hide and pick again", role: .destructive) {

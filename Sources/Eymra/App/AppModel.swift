@@ -22,6 +22,7 @@ final class AppModel {
     init(arguments: [String] = ProcessInfo.processInfo.arguments) {
         isUITesting = arguments.contains("-uiTesting")
         if isUITesting {
+            Keychain.useMemoryStore()
             let defaults = UserDefaults(suiteName: "eymra-uitests") ?? .standard
             defaults.removePersistentDomain(forName: "eymra-uitests")
             settings = Settings(defaults: defaults)
@@ -40,7 +41,8 @@ final class AppModel {
         if let fixtures {
             if !arguments.contains("-onboarding") { account.useReference(fixtures.meReference) }
             source = FixturePhotoSource(fixtures: fixtures)
-            extractor = FakeFeatureExtractor(features: fixtures.features)
+            extractor = FakeFeatureExtractor(features: fixtures.features,
+                                             delay: arguments.contains("-slowRun") ? .milliseconds(450) : .zero)
         } else {
             source = PhotoLibrary()
             extractor = FeatureExtractor()

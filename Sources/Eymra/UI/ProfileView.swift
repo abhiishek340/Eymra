@@ -30,6 +30,7 @@ struct ProfileView: View {
             .padding(.bottom, 120)
         }
         .scrollIndicators(.hidden)
+        .scrollDismissesKeyboard(.interactively)
         .dreamScreen()
         .sheet(item: $faceFlow) { flow in
             ZStack {
@@ -119,6 +120,7 @@ struct ProfileView: View {
                     Button(app.account.hasFace ? "Scan again" : "Scan my face") { faceFlow = .camera }.buttonStyle(.glassSoft)
                 }
                 Button("Choose photos") { faceFlow = .upload }.buttonStyle(.glassSoft)
+                    .accessibilityIdentifier("faceChoosePhotos")
             }
             if app.account.hasFace {
                 Button("Remove my face") { app.account.removeFace() }
@@ -203,17 +205,18 @@ struct ProfileView: View {
                         .autocorrectionDisabled()
                         .padding(.horizontal, 16).padding(.vertical, 14)
                         .glassCapsule(interactive: false)
+                        .submitLabel(.done)
+                        // Done on the keyboard saves, so the Save button hidden under the keyboard isn't needed.
+                        .onSubmit { saveKey(settings) }
                         .accessibilityIdentifier("apiKeyField")
                     HStack {
-                        Button("Save key") {
-                            settings.setAPIKey(keyDraft)
-                            keyDraft = ""
-                            note = settings.hasAPIKey ? String(localized: "Saved. It's kept safely in your phone's keychain.") : nil
-                        }
+                        Button("Save key") { saveKey(settings) }
                         .buttonStyle(.glassSoft)
                         .disabled(keyDraft.isEmpty)
+                        .accessibilityIdentifier("saveKey")
                         if settings.hasAPIKey {
                             Button("Remove key") { settings.setAPIKey(""); note = nil }
+                                .accessibilityIdentifier("removeKey")
                                 .font(.system(size: 14)).foregroundStyle(Theme.inkSoft)
                         }
                     }
@@ -233,6 +236,15 @@ struct ProfileView: View {
         }
         .padding(20)
         .glassCard()
+    }
+
+    private func saveKey(_ settings: Settings) {
+        guard !keyDraft.isEmpty else { return }
+        let saved = settings.setAPIKey(keyDraft)
+        keyDraft = ""
+        note = saved && settings.hasAPIKey
+            ? String(localized: "Saved. It's kept safely in your phone's keychain.")
+            : String(localized: "Your phone wouldn't save the key. Please try again.")
     }
 
     // MARK: Photos and privacy

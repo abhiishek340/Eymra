@@ -24,8 +24,35 @@ struct OnboardingFlow: View {
             }
             .transition(.blurReplace(.downUp))
             .id(step)
+            if let previous = previousStep {
+                VStack {
+                    HStack {
+                        Button { go(previous) } label: { Image(systemName: "chevron.backward") }
+                            .buttonStyle(RoundGlassButtonStyle())
+                            .accessibilityLabel("Back")
+                            .accessibilityIdentifier("onboardingBack")
+                        Spacer()
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
+                .transition(.opacity)
+            }
         }
         .foregroundStyle(Theme.ink)
+    }
+
+    /// Where Back goes. Face scan and photo picking have their own back buttons.
+    private var previousStep: Step? {
+        switch step {
+        case .welcome, .faceScan, .faceUpload: nil
+        case .signIn: .welcome
+        case .question(0): app.account.isSignedIn ? .welcome : .signIn
+        case .question(let i): .question(i - 1)
+        case .faceIntro: .question(QuestionStep.count - 1)
+        case .photos: .faceIntro
+        }
     }
 
     private func go(_ next: Step) {
@@ -245,7 +272,9 @@ struct QuestionStep: View {
                         }
                         .padding(14)
                         .contentShape(Rectangle())
-                        .glassCard(cornerRadius: 22, tint: option.isSelected(app.account.prefs) ? .white.opacity(0.45) : nil, interactive: true)
+                        .glassCard(cornerRadius: 22, tint: option.isSelected(app.account.prefs) ? .white.opacity(0.5) : nil)
+                        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            .strokeBorder(Theme.ink.opacity(option.isSelected(app.account.prefs) ? 0.9 : 0), lineWidth: 1.5))
                     }
                     .buttonStyle(PressableStyle())
                     .sensoryFeedback(.selection, trigger: option.isSelected(app.account.prefs))
