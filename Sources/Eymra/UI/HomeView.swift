@@ -29,57 +29,56 @@ struct CreateView: View {
     }
 }
 
+/// The setup screen: shown, not explained. Your own photos up top, a chart of your days,
+/// the real shape of each post, dots for how many, and a slider from you to places.
 struct SetupView: View {
     @Environment(AppModel.self) private var app
     @Bindable var vm: RunViewModel
 
     var body: some View {
-        Group {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    header
-                    if let last = vm.result { lastStoryCard(last).riseIn(delay: 0.05) }
-                    if !app.access.isUsable { accessCard }
-                    if app.access == .limited { limitedCard }
-                    whenCard.riseIn(delay: 0.1)
-                    whereCard.riseIn(delay: 0.18)
-                    countCard.riseIn(delay: 0.26)
-                    focusCard.riseIn(delay: 0.34)
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 8)
-                .padding(.bottom, 170)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 26) {
+                header
+                if let last = vm.result { lastStoryCard(last).riseIn(delay: 0.05) }
+                if !app.access.isUsable { accessCard }
+                PhotoHero(ids: vm.previewIDs, count: vm.photoCount)
+                    .frame(maxWidth: .infinity)
+                    .riseIn(delay: 0.1)
+                section("When") { whenSection }.riseIn(delay: 0.16)
+                section("Where") { whereSection }.riseIn(delay: 0.22)
+                section("How many") { countSection }.riseIn(delay: 0.28)
+                section("Focus") { focusSection }.riseIn(delay: 0.34)
+                if app.access == .limited { limitedCard }
             }
-            .scrollIndicators(.hidden)
-            .overlay(alignment: .bottom) {
-                ZStack(alignment: .bottom) {
-                    BottomFade(height: 220)
-                    runButton
-                }
-            }
-            .dreamScreen()
+            .padding(.horizontal, 20)
+            .padding(.top, 8)
+            .padding(.bottom, 180)
         }
+        .scrollIndicators(.hidden)
+        .overlay(alignment: .bottom) {
+            ZStack(alignment: .bottom) {
+                BottomFade(height: 220)
+                runButton
+            }
+        }
+        .dreamScreen()
         .task { vm.refreshCount() }
-        .onChange(of: app.access) { vm.refreshCount() }
+        .onChange(of: app.access) { vm.refreshCount(); vm.refreshDays() }
     }
 
-    // MARK: Sections
+    // MARK: Header
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 4) {
             Text(Date.now, format: .dateTime.weekday(.wide).day().month(.wide))
-                .font(.system(size: 13, weight: .medium))
+                .font(.system(size: 12, weight: .semibold))
                 .textCase(.uppercase)
-                .foregroundStyle(Theme.inkSoft)
-            Text(greeting).font(Theme.title(34))
+                .tracking(0.8)
+                .foregroundStyle(Theme.inkFaint)
+            Text(greeting).font(Theme.title(32))
                 .revealOnAppear(trigger: greeting)
-            Text("Let's find the photos worth sharing.")
-                .font(.system(size: 17, design: .serif))
-                .foregroundStyle(Theme.inkSoft)
-                .revealOnAppear(delay: 0.35)
         }
-        .padding(.top, 16)
-        .padding(.bottom, 6)
+        .padding(.top, 14)
     }
 
     private var greeting: String {
@@ -91,6 +90,137 @@ struct SetupView: View {
         default: return String(localized: "Good evening, \(name)")
         }
     }
+
+    private func section<Content: View>(_ label: LocalizedStringKey, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(label)
+                .font(.system(size: 11, weight: .bold))
+                .textCase(.uppercase)
+                .tracking(1.2)
+                .foregroundStyle(Theme.inkFaint)
+            content()
+        }
+    }
+
+    // MARK: When: a chart of your last 7 days
+
+    private var whenSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            DayChart(days: vm.days, isSelected: vm.isSelected) { day in
+                withAnimation(Theme.Motion.snap) { vm.selectDay(day) }
+            }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(RangePreset.allCases) { preset in
+                        GlassChip(title: preset.short, selected: vm.preset == preset) {
+                            withAnimation(Theme.Motion.snap) { vm.preset = preset }
+                        }
+                        .accessibilityIdentifier("range-\(preset.rawValue)")
+                    }
+                }
+            }
+            if vm.preset == .custom {
+                VStack(spacing: 8) {
+                    DatePicker("From", selection: $vm.customStart, in: ...Date())
+                    DatePicker("To", selection: $vm.customEnd, in: ...Date())
+                }
+                .font(.system(size: 15))
+                .tint(Theme.ink)
+                .padding(14)
+                .glassCard(cornerRadius: 20)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .padding(16)
+        .glassCard()
+    }
+
+    // MARK: Where: the real shape of each post
+
+    private var whereSection: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                ForEach(PlatformPreset.all) { p in
+                    PlatformTile(preset: p, selected: vm.platform == p.id) {
+                        withAnimation(Theme.Motion.pop) { vm.platform = p.id }
+                    }
+                    .accessibilityIdentifier("platform-\(p.id.rawValue)")
+                }
+            }
+            .padding(.vertical, 2)
+        }
+    }
+
+    // MARK: How many: one dot per photo
+
+    private var countSection: some View {
+        VStack(spacing: 14) {
+            HStack(alignment: .center) {
+                Button { if vm.count > 1 { vm.count -= 1 } } label: { Image(systemName: "minus") }
+                    .buttonStyle(RoundGlassButtonStyle())
+                    .disabled(vm.count <= 1)
+                    .accessibilityLabel("Fewer")
+                Spacer()
+                VStack(spacing: 0) {
+                    Text("\(vm.count)")
+                        .font(Theme.display(48))
+                        .monospacedDigit()
+                        .contentTransition(.numericText())
+                        .accessibilityIdentifier("countValue")
+                    Text("of \(vm.platformPreset.maxCount)")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Theme.inkFaint)
+                }
+                Spacer()
+                Button { if vm.count < vm.platformPreset.maxCount { vm.count += 1 } } label: { Image(systemName: "plus") }
+                    .buttonStyle(RoundGlassButtonStyle())
+                    .disabled(vm.count >= vm.platformPreset.maxCount)
+                    .accessibilityLabel("More")
+            }
+            CountDots(count: $vm.count, maximum: vm.platformPreset.maxCount)
+        }
+        .animation(Theme.Motion.pop, value: vm.count)
+        .padding(16)
+        .glassCard()
+        .sensoryFeedback(.selection, trigger: vm.count)
+    }
+
+    // MARK: Focus: from you to places
+
+    private var focusSection: some View {
+        HStack(spacing: 8) {
+            focusOption(.moreOfMe, symbol: "person.fill", short: "Me", label: "More of me")
+            focusOption(.balanced, symbol: "circle.grid.2x2.fill", short: "Mix", label: "A mix")
+            focusOption(.moreScenery, symbol: "mountain.2.fill", short: "Places", label: "More places")
+        }
+        .padding(6)
+        .glassCard(cornerRadius: 26)
+    }
+
+    private func focusOption(_ mix: Mix, symbol: String, short: LocalizedStringKey, label: LocalizedStringKey) -> some View {
+        let selected = vm.mix == mix
+        return Button {
+            withAnimation(Theme.Motion.snap) { vm.mix = mix }
+        } label: {
+            VStack(spacing: 6) {
+                Image(systemName: symbol).font(.system(size: 20, weight: .medium))
+                Text(short).font(.system(size: 12, weight: .semibold))
+            }
+            .foregroundStyle(selected ? Theme.onInk : Theme.ink.opacity(0.7))
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .background {
+                if selected { RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Theme.ink) }
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        }
+        .buttonStyle(PressableStyle())
+        .accessibilityLabel(label)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+        .sensoryFeedback(.selection, trigger: selected)
+    }
+
+    // MARK: Cards
 
     private func lastStoryCard(_ run: RunResult) -> some View {
         Button { vm.showResults = true } label: {
@@ -104,7 +234,7 @@ struct SetupView: View {
                     }
                 }
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Your last story").font(.system(size: 13)).foregroundStyle(Theme.inkSoft)
+                    Text("Your last story").font(.system(size: 12)).foregroundStyle(Theme.inkSoft)
                     Text(run.title.isEmpty ? String(localized: "Your story") : run.title)
                         .font(.system(size: 17, weight: .semibold, design: .serif))
                         .lineLimit(1)
@@ -121,136 +251,27 @@ struct SetupView: View {
     }
 
     private var accessCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label("Eymra can't see your photos yet.", systemImage: "photo.badge.exclamationmark")
-                .font(.system(size: 16, weight: .medium))
-            Button(app.access == .denied ? "Turn it on in Settings" : "Allow photo access") {
+        HStack(spacing: 14) {
+            Image(systemName: "photo.on.rectangle.angled").font(.system(size: 26, weight: .light))
+            Text("Eymra can't see your photos yet.").font(.system(size: 15, weight: .medium))
+            Spacer()
+            Button(app.access == .denied ? "Settings" : "Allow") {
                 if app.access == .denied { app.openSystemSettings() } else { Task { await app.requestAccess() } }
             }
             .buttonStyle(.glassSoft)
         }
-        .padding(20)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
         .glassCard()
     }
 
     private var limitedCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Eymra can only see some of your photos, so it might miss your best ones.")
-                .font(.system(size: 15))
-            Button("Let Eymra see all photos") { app.openSystemSettings() }
-                .buttonStyle(.glassSoft)
-        }
-        .padding(20)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .glassCard()
-    }
-
-    private var whenCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            DreamHeading(text: String(localized: "When were they taken?"))
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(RangePreset.allCases) { preset in
-                        GlassChip(title: preset.title, selected: vm.preset == preset) {
-                            withAnimation(.spring(duration: 0.3)) { vm.preset = preset }
-                        }
-                        .accessibilityIdentifier("range-\(preset.rawValue)")
-                    }
-                }
-                .padding(.vertical, 2)
-            }
-            if vm.preset == .custom {
-                VStack(spacing: 10) {
-                    DatePicker("From", selection: $vm.customStart, in: ...Date())
-                    DatePicker("To", selection: $vm.customEnd, in: ...Date())
-                }
-                .font(.system(size: 15))
-                .tint(Theme.ink)
-                .padding(14)
-                .glassCard(cornerRadius: 20)
-            }
-            Group {
-                if let n = vm.photoCount {
-                    Text(n == 0 ? String(localized: "No photos from this time") : String(localized: "\(n) photos from this time"))
-                } else {
-                    Text("Counting your photos…")
-                }
-            }
-            .font(.system(size: 14))
-            .foregroundStyle(Theme.inkSoft)
-            .accessibilityIdentifier("photoCount")
-        }
-        .padding(20)
-        .glassCard()
-    }
-
-    private var whereCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            DreamHeading(text: String(localized: "Where will you post them?"))
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(PlatformPreset.all) { p in
-                        GlassChip(title: p.name, systemImage: p.symbol, selected: vm.platform == p.id) {
-                            withAnimation(.spring(duration: 0.3)) { vm.platform = p.id }
-                        }
-                        .accessibilityIdentifier("platform-\(p.id.rawValue)")
-                    }
-                }
-                .padding(.vertical, 2)
-            }
-        }
-        .padding(20)
-        .glassCard()
-    }
-
-    private var countCard: some View {
-        HStack(spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
-                DreamHeading(text: String(localized: "How many photos?"))
-                Text("\(vm.platformPreset.name) allows up to \(vm.platformPreset.maxCount)")
-                    .font(.system(size: 13)).foregroundStyle(Theme.inkSoft)
-            }
+        HStack(spacing: 14) {
+            Image(systemName: "eye.trianglebadge.exclamationmark").font(.system(size: 22, weight: .light))
+            Text("Only some photos are visible.").font(.system(size: 14))
             Spacer()
-            Button { if vm.count > 1 { vm.count -= 1 } } label: { Image(systemName: "minus") }
-                .buttonStyle(RoundGlassButtonStyle())
-                .disabled(vm.count <= 1)
-                .accessibilityLabel("Fewer")
-            Text("\(vm.count)")
-                .font(Theme.display(40))
-                .monospacedDigit()
-                .frame(minWidth: 52)
-                .contentTransition(.numericText())
-                .accessibilityIdentifier("countValue")
-            Button { if vm.count < vm.platformPreset.maxCount { vm.count += 1 } } label: { Image(systemName: "plus") }
-                .buttonStyle(RoundGlassButtonStyle())
-                .disabled(vm.count >= vm.platformPreset.maxCount)
-                .accessibilityLabel("More")
+            Button("Allow all") { app.openSystemSettings() }.buttonStyle(.glassSoft)
         }
-        .animation(.spring(duration: 0.25), value: vm.count)
-        .padding(20)
-        .glassCard()
-    }
-
-    private var focusCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            DreamHeading(text: String(localized: "What should we focus on?"))
-            HStack(spacing: 8) {
-                GlassChip(title: String(localized: "More of me"), selected: vm.mix == .moreOfMe) { vm.mix = .moreOfMe }
-                GlassChip(title: String(localized: "A mix"), selected: vm.mix == .balanced) { vm.mix = .balanced }
-                GlassChip(title: String(localized: "More places"), selected: vm.mix == .moreScenery) { vm.mix = .moreScenery }
-            }
-            if app.account.faceNeedsRedo {
-                Text("Eymra got better at recognising you. Please scan your face again in the You tab.")
-                    .font(.system(size: 13)).foregroundStyle(Theme.inkSoft)
-            } else if app.account.meReference == nil {
-                Text(app.account.faceUnusable
-                     ? "Eymra couldn't learn your face on this device, so it can't tell you apart from friends."
-                     : "Tip: set up your face in the You tab so Eymra can tell you apart from your friends.")
-                    .font(.system(size: 13)).foregroundStyle(Theme.inkSoft)
-            }
-        }
-        .padding(20)
+        .padding(16)
         .glassCard()
     }
 
@@ -263,12 +284,173 @@ struct SetupView: View {
                 Image(systemName: "arrow.right").font(.system(size: 15, weight: .semibold))
             }
         }
-        .sensoryFeedback(.impact(weight: .medium), trigger: vm.isRunning)
         .buttonStyle(.glassPrimary)
         .disabled(vm.photoCount == 0 || !app.access.isUsable)
         .padding(.horizontal, 20)
         .padding(.bottom, 84)
         .accessibilityIdentifier("runButton")
+    }
+}
+
+// MARK: - Pieces
+
+/// Your own photos from the chosen time, fanned out like a hand of cards, with the count beside them.
+struct PhotoHero: View {
+    let ids: [String]
+    let count: Int?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var float = false
+
+    var body: some View {
+        HStack(spacing: 18) {
+            ZStack {
+                let shown = Array(ids.prefix(5))
+                if shown.isEmpty {
+                    ForEach(0..<3, id: \.self) { i in
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(.white.opacity(0.35))
+                            .overlay(Image(systemName: "photo").font(.system(size: 22, weight: .light)).foregroundStyle(Theme.inkFaint))
+                            .frame(width: 78, height: 100)
+                            .rotationEffect(.degrees(Double(i - 1) * 9))
+                            .offset(x: CGFloat(i - 1) * 26)
+                    }
+                } else {
+                    ForEach(Array(shown.enumerated()), id: \.element) { i, id in
+                        let mid = Double(shown.count - 1) / 2, k = Double(i) - mid
+                        PhotoThumbnail(photoID: id, longEdge: 260)
+                            .frame(width: 78, height: 100)
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(.white, lineWidth: 2))
+                            .shadow(color: .black.opacity(0.14), radius: 10, y: 6)
+                            .rotationEffect(.degrees(k * 8))
+                            .offset(x: k * 24, y: abs(k) * 6 + (float ? -3 : 3) * (i.isMultiple(of: 2) ? 1 : -1))
+                            .zIndex(-abs(k))
+                            .transition(.scale(scale: 0.7).combined(with: .opacity))
+                    }
+                }
+            }
+            .frame(width: 190, height: 130)
+            .animation(Theme.Motion.pop, value: ids)
+
+            VStack(alignment: .leading, spacing: 0) {
+                Text(count.map { "\($0)" } ?? "–")
+                    .font(Theme.display(52))
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
+                    .animation(Theme.Motion.pop, value: count)
+                Text(count == 1 ? "photo" : "photos")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Theme.inkSoft)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(count.map { $0 == 0 ? String(localized: "No photos from this time") : String(localized: "\($0) photos from this time") }
+                                ?? String(localized: "Counting your photos…"))
+            .accessibilityIdentifier("photoCount")
+        }
+        .onAppear {
+            guard !reduceMotion && !Theme.stillMotion else { return }
+            withAnimation(.easeInOut(duration: 3.2).repeatForever(autoreverses: true)) { float = true }
+        }
+    }
+}
+
+/// Photos per day for the last week, as soft bars. Tap a day to pick it.
+struct DayChart: View {
+    let days: [RunViewModel.DayCount]
+    let isSelected: (RunViewModel.DayCount) -> Bool
+    let pick: (RunViewModel.DayCount) -> Void
+
+    var body: some View {
+        let top = max(1, days.map(\.count).max() ?? 1)
+        HStack(alignment: .bottom, spacing: 8) {
+            ForEach(days) { day in
+                let on = isSelected(day)
+                Button { pick(day) } label: {
+                    VStack(spacing: 6) {
+                        Text(day.count > 0 ? "\(day.count)" : "")
+                            .font(.system(size: 10, weight: .semibold).monospacedDigit())
+                            .foregroundStyle(on ? Theme.ink : Theme.inkFaint)
+                        Capsule()
+                            .fill(on ? AnyShapeStyle(Theme.ink) : AnyShapeStyle(Theme.ink.opacity(0.12)))
+                            .frame(height: max(6, 64 * CGFloat(day.count) / CGFloat(top)))
+                        Text(label(day.start))
+                            .font(.system(size: 11, weight: on ? .bold : .medium))
+                            .foregroundStyle(on ? Theme.ink : Theme.inkSoft)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(PressableStyle())
+                .accessibilityLabel("\(day.start.formatted(.dateTime.weekday(.wide))), \(day.count) photos")
+            }
+        }
+        .frame(height: 104, alignment: .bottom)
+        .animation(Theme.Motion.pop, value: days)
+    }
+
+    private func label(_ date: Date) -> String {
+        Calendar.current.isDateInToday(date) ? String(localized: "Today") : date.formatted(.dateTime.weekday(.narrow))
+    }
+}
+
+/// A platform shown as the real shape of its post.
+struct PlatformTile: View {
+    let preset: PlatformPreset
+    let selected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 10) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(selected ? AnyShapeStyle(Theme.ink) : AnyShapeStyle(Theme.ink.opacity(0.08)))
+                        .overlay(RoundedRectangle(cornerRadius: 7, style: .continuous).strokeBorder(Theme.ink.opacity(selected ? 0 : 0.25), lineWidth: 1))
+                        .aspectRatio(preset.primaryRatio.value, contentMode: .fit)
+                        .frame(height: 50)
+                        .frame(maxWidth: 58)
+                    Image(systemName: preset.symbol)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(selected ? Theme.onInk : Theme.inkSoft)
+                }
+                .frame(height: 56)
+                Text(preset.shortName)
+                    .font(.system(size: 12, weight: selected ? .bold : .medium))
+                    .lineLimit(1)
+            }
+            .foregroundStyle(Theme.ink)
+            .frame(width: 84, height: 104)
+            .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .glassCard(cornerRadius: 22, tint: selected ? .white.opacity(0.45) : nil)
+            .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(Theme.ink.opacity(selected ? 0.85 : 0), lineWidth: 1.5))
+            .scaleEffect(selected ? 1 : 0.96)
+        }
+        .buttonStyle(PressableStyle())
+        .accessibilityLabel(preset.name)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+        .sensoryFeedback(.selection, trigger: selected)
+    }
+}
+
+/// One small pill per photo you'll post; tap one to set the count.
+struct CountDots: View {
+    @Binding var count: Int
+    let maximum: Int
+
+    var body: some View {
+        let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: min(10, maximum))
+        LazyVGrid(columns: columns, spacing: 6) {
+            ForEach(0..<maximum, id: \.self) { i in
+                Capsule()
+                    .fill(i < count ? AnyShapeStyle(Theme.ink) : AnyShapeStyle(Theme.ink.opacity(0.1)))
+                    .frame(height: 10)
+                    .scaleEffect(i == count - 1 ? 1.15 : 1)
+                    .contentShape(Rectangle().inset(by: -6))
+                    .onTapGesture { count = i + 1 }
+                    .accessibilityHidden(true)
+            }
+        }
+        .frame(maxWidth: maximum < 10 ? CGFloat(maximum) * 34 : .infinity)
     }
 }
 
@@ -286,5 +468,6 @@ struct RoundGlassButtonStyle: ButtonStyle {
             .glassCapsule()
             .opacity(isEnabled ? 1 : 0.4)
             .scaleEffect(configuration.isPressed ? 0.92 : 1)
+            .animation(Theme.Motion.snap, value: configuration.isPressed)
     }
 }

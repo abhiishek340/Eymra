@@ -82,16 +82,15 @@ struct ResultsView: View {
                 .font(Theme.title(34))
                 .revealOnAppear(duration: 1.3, trigger: r.id)
                 .accessibilityIdentifier("storyTitle")
-            Text("\(r.picks.count) photos, picked from \(r.stats.photoCount)")
-                .font(.system(size: 16, design: .serif))
-                .foregroundStyle(Theme.inkSoft)
-                .revealOnAppear(delay: 0.5, trigger: r.id)
+            StoryGlance(result: r)
+                .riseIn(delay: 0.35)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(r.picks.count) photos, picked from \(r.stats.photoCount)")
                 .accessibilityIdentifier("resultsTitle")
-            HStack(spacing: 6) {
-                GlassTag(text: "\(r.stats.sceneCount) \(r.stats.sceneCount == 1 ? String(localized: "place") : String(localized: "places"))", systemImage: "mappin.and.ellipse")
-                if r.stats.recognisedMe { GlassTag(text: String(localized: "Found you"), systemImage: "person.crop.circle.badge.checkmark") }
-            }
-            .riseIn(delay: 0.7)
+            DayRibbon(result: r)
+                .riseIn(delay: 0.5)
+            MixBar(picks: r.picks)
+                .riseIn(delay: 0.6)
             let notes = [r.stats.meNote].compactMap { $0 }
                 + (r.stats.shortfall > 0 ? [String(localized: "We only found \(r.picks.count) different moments worth posting, so you have \(r.picks.count) instead of \(r.config.count).")] : [])
             if !notes.isEmpty {
@@ -179,9 +178,20 @@ struct StoryCard: View {
                 .font(.system(size: 17, weight: .medium, design: .serif))
                 .lineLimit(2)
                 .padding(.horizontal, 4)
-            HStack(spacing: 6) {
-                GlassTag(text: Explanations.categoryName(pick.category), systemImage: pick.category.symbol)
-                if pick.clusterSize > 1 { GlassTag(text: String(localized: "best of \(pick.clusterSize)")) }
+            HStack(spacing: 10) {
+                Image(systemName: pick.category.symbol)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 26, height: 26)
+                    .background(Circle().fill(pick.category.tone))
+                    .accessibilityLabel(Explanations.categoryName(pick.category))
+                if pick.clusterSize > 1 {
+                    Label("\(pick.clusterSize)", systemImage: "square.stack.3d.down.right.fill")
+                        .font(.system(size: 12, weight: .semibold).monospacedDigit())
+                        .foregroundStyle(Theme.inkSoft)
+                        .accessibilityLabel(String(localized: "best of \(pick.clusterSize)"))
+                }
+                Spacer()
             }
             .padding(.horizontal, 4)
         }
@@ -198,5 +208,153 @@ struct PressableStyle: ButtonStyle {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
             .animation(.spring(duration: 0.3, bounce: 0.3), value: configuration.isPressed)
+    }
+}
+
+// MARK: - At a glance
+
+/// "40 → 10": how many photos went in, how many came out, where, and whether you were found.
+struct StoryGlance: View {
+    let result: RunResult
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 14) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("\(result.stats.photoCount)")
+                    .font(Theme.display(30)).monospacedDigit()
+                    .foregroundStyle(Theme.inkFaint)
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Theme.inkFaint)
+                Text("\(result.picks.count)")
+                    .font(Theme.display(30)).monospacedDigit()
+            }
+            Spacer()
+            glanceStat(symbol: "mappin.and.ellipse", value: "\(result.stats.sceneCount)")
+            if result.stats.recognisedMe {
+                glanceStat(symbol: "person.crop.circle.badge.checkmark", value: "\(result.picks.filter { result.scores[$0.photoID]?.withMe == true }.count)")
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .glassCard(cornerRadius: 22)
+    }
+
+    private func glanceStat(symbol: String, value: String) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: symbol).font(.system(size: 14, weight: .semibold))
+            Text(value).font(.system(size: 16, weight: .semibold).monospacedDigit())
+        }
+        .foregroundStyle(Theme.ink)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(Capsule().fill(Theme.ink.opacity(0.07)))
+    }
+}
+
+/// The day as a line: one dot per place you went, in time order, with your picks floating above it.
+struct DayRibbon: View {
+    let result: RunResult
+
+    var body: some View {
+        let scenes = result.scenes
+        let first = scenes.first?.start ?? Date(), last = scenes.last?.end ?? Date()
+        let span = max(1, last.timeIntervalSince(first))
+        GeometryReader { geo in
+            let w = geo.size.width - 24
+            let x = { (date: Date) in 12 + w * CGFloat(date.timeIntervalSince(first) / span) }
+            ZStack(alignment: .topLeading) {
+                Capsule().fill(Theme.ink.opacity(0.12)).frame(height: 3).offset(y: 70)
+                ForEach(scenes) { scene in
+                    let mid = scene.start.addingTimeInterval(scene.end.timeIntervalSince(scene.start) / 2)
+                    Circle()
+                        .fill(Theme.ink)
+                        .frame(width: 9, height: 9)
+                        .position(x: x(mid), y: 71.5)
+                }
+                ForEach(Array(result.picks.enumerated()), id: \.element.id) { i, pick in
+                    if let scene = result.scenes.first(where: { $0.photoIDs.contains(pick.photoID) }) {
+                        let mid = scene.start.addingTimeInterval(scene.end.timeIntervalSince(scene.start) / 2)
+                        let stack = result.picks.prefix(i).filter { p in scene.photoIDs.contains(p.photoID) }.count
+                        PhotoThumbnail(photoID: pick.photoID, longEdge: 160)
+                            .frame(width: 34, height: 42)
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(.white, lineWidth: 1.5))
+                            .shadow(color: .black.opacity(0.12), radius: 4, y: 2)
+                            .rotationEffect(.degrees(Double(stack) * 7 - 4))
+                            .position(x: x(mid) + CGFloat(stack) * 9, y: 36 - CGFloat(stack) * 3)
+                    }
+                }
+                HStack {
+                    Text(first, format: .dateTime.hour().minute())
+                    Spacer()
+                    Text(last, format: .dateTime.hour().minute())
+                }
+                .font(.system(size: 10, weight: .medium).monospacedDigit())
+                .foregroundStyle(Theme.inkFaint)
+                .offset(y: 82)
+            }
+        }
+        .frame(height: 100)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 10)
+        .glassCard(cornerRadius: 22)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(result.scenes.count) places through the day")
+    }
+}
+
+/// The mix of the set as one bar: a soft colour per kind of shot, with its icon.
+struct MixBar: View {
+    let picks: [Pick]
+
+    var body: some View {
+        let groups = Dictionary(grouping: picks, by: \.category)
+            .map { (category: $0.key, count: $0.value.count) }
+            .sorted { $0.count != $1.count ? $0.count > $1.count : $0.category.rawValue < $1.category.rawValue }
+        let total = max(1, picks.count)
+        VStack(spacing: 10) {
+            GeometryReader { geo in
+                HStack(spacing: 3) {
+                    ForEach(groups, id: \.category) { g in
+                        Capsule()
+                            .fill(g.category.tone)
+                            .frame(width: max(8, (geo.size.width - CGFloat(groups.count - 1) * 3) * CGFloat(g.count) / CGFloat(total)))
+                    }
+                }
+            }
+            .frame(height: 10)
+            HStack(spacing: 12) {
+                ForEach(groups, id: \.category) { g in
+                    HStack(spacing: 4) {
+                        Circle().fill(g.category.tone).frame(width: 8, height: 8)
+                        Image(systemName: g.category.symbol).font(.system(size: 11, weight: .semibold))
+                        Text("\(g.count)").font(.system(size: 12, weight: .semibold).monospacedDigit())
+                    }
+                    .foregroundStyle(Theme.inkSoft)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("\(g.count) \(Explanations.categoryName(g.category))")
+                }
+                Spacer(minLength: 0)
+            }
+        }
+        .padding(14)
+        .glassCard(cornerRadius: 22)
+    }
+}
+
+extension Category {
+    /// A calm colour per kind of shot (muted, no purple), used by the mix bar and card badges.
+    var tone: Color {
+        switch self {
+        case .me: Color(red: 0.20, green: 0.26, blue: 0.32)
+        case .meWithView: Color(red: 0.36, green: 0.49, blue: 0.56)
+        case .group: Color(red: 0.29, green: 0.54, blue: 0.50)
+        case .friends: Color(red: 0.50, green: 0.62, blue: 0.73)
+        case .view: Color(red: 0.49, green: 0.66, blue: 0.48)
+        case .food: Color(red: 0.84, green: 0.62, blue: 0.38)
+        case .detail: Color(red: 0.67, green: 0.60, blue: 0.53)
+        case .other: Color(red: 0.62, green: 0.66, blue: 0.70)
+        }
     }
 }

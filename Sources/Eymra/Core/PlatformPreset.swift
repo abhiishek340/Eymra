@@ -28,6 +28,17 @@ nonisolated struct PlatformPreset: Codable, Sendable, Hashable, Identifiable {
 
     var primaryRatio: AspectRatio { ratios.first ?? .square }
 
+    /// One word for the platform tiles.
+    var shortName: String {
+        switch id {
+        case .instagramCarousel: "Carousel"
+        case .instagramSingle: "Single"
+        case .reels: "Reels"
+        case .facebook: "Facebook"
+        case .x: "X"
+        }
+    }
+
     /// The app "Open …" launches.
     var appName: String {
         switch id {

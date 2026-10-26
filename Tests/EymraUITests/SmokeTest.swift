@@ -63,8 +63,8 @@ final class SmokeTest: XCTestCase {
     @MainActor
     func testRunShowsTenPicksAndEditing() throws {
         let app = launch()
-        XCTAssertTrue(app.staticTexts["photoCount"].waitForExistence(timeout: 10))
-        XCTAssertEqual(app.staticTexts["photoCount"].label, "40 photos from this time")
+        XCTAssertTrue(app.descendants(matching: .any)["photoCount"].waitForExistence(timeout: 10))
+        XCTAssertEqual(app.descendants(matching: .any)["photoCount"].label, "40 photos from this time")
         sleep(1)
         screenshot(app, "10-home")
 
@@ -72,8 +72,8 @@ final class SmokeTest: XCTestCase {
         // The working state is constantly animating (and short with 40 photos), so it's photographed, not queried.
         Thread.sleep(forTimeInterval: 0.9)
         screenshot(app, "10b-working")
-        XCTAssertTrue(app.staticTexts["resultsTitle"].waitForExistence(timeout: 30))
-        XCTAssertEqual(app.staticTexts["resultsTitle"].label, "10 photos, picked from 40")
+        XCTAssertTrue(app.descendants(matching: .any)["resultsTitle"].waitForExistence(timeout: 30))
+        XCTAssertEqual(app.descendants(matching: .any)["resultsTitle"].label, "10 photos, picked from 40")
         sleep(2)
         screenshot(app, "11-results")
         app.swipeUp()
@@ -93,7 +93,7 @@ final class SmokeTest: XCTestCase {
         let done = app.buttons["detailDone"]
         for _ in 0..<5 where !done.isHittable { app.swipeDown() }
         done.tap()
-        XCTAssertTrue(app.staticTexts["resultsTitle"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["resultsTitle"].waitForExistence(timeout: 5))
 
         // Other photos → why not → use it instead.
         let excluded = app.buttons["excludedSection"]
@@ -108,7 +108,7 @@ final class SmokeTest: XCTestCase {
         sleep(1)
         screenshot(app, "15-why-not")
         if app.buttons["swapIn"].exists { app.buttons["swapIn"].tap() } else { app.buttons["whyNotClose"].tap() }
-        XCTAssertTrue(app.staticTexts["resultsTitle"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["resultsTitle"].waitForExistence(timeout: 5))
 
         // Back home, then the Stories and You tabs.
         app.buttons["resultsBack"].tap()
@@ -127,7 +127,7 @@ final class SmokeTest: XCTestCase {
         let app = launch(["-judge"])
         XCTAssertTrue(app.buttons["runButton"].waitForExistence(timeout: 10))
         app.buttons["runButton"].tap()
-        XCTAssertTrue(app.staticTexts["resultsTitle"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.descendants(matching: .any)["resultsTitle"].waitForExistence(timeout: 30))
         XCTAssertEqual(app.staticTexts["storyTitle"].label, "A golden day out")
         // Nothing on the story says how it was made.
         XCTAssertFalse(app.staticTexts.containing(NSPredicate(format: "label CONTAINS[c] 'Claude'")).firstMatch.exists)
@@ -168,13 +168,13 @@ final class RealLibraryTest: XCTestCase {
         let range = ProcessInfo.processInfo.environment["EYMRA_RANGE"] ?? "yesterday"
         XCTAssertTrue(app.buttons["range-\(range)"].waitForExistence(timeout: 10))
         app.buttons["range-\(range)"].tap()
-        let count = app.staticTexts["photoCount"]
+        let count = app.descendants(matching: .any)["photoCount"]
         XCTAssertTrue(count.waitForExistence(timeout: 10))
         let started = Date()
         app.buttons["runButton"].tap()
-        XCTAssertTrue(app.staticTexts["resultsTitle"].waitForExistence(timeout: 120))
+        XCTAssertTrue(app.descendants(matching: .any)["resultsTitle"].waitForExistence(timeout: 120))
         let elapsed = Date().timeIntervalSince(started)
-        let note = XCTAttachment(string: "\(count.label); run took \(String(format: "%.1f", elapsed)) s; \(app.staticTexts["resultsTitle"].label)")
+        let note = XCTAttachment(string: "\(count.label); run took \(String(format: "%.1f", elapsed)) s; \(app.descendants(matching: .any)["resultsTitle"].label)")
         note.lifetime = .keepAlways
         add(note)
 
