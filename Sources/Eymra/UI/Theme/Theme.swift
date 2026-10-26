@@ -13,6 +13,11 @@ enum Theme {
     static let inkFaint = Color("Ink").opacity(0.42)
     /// Text and icons on the solid ink button.
     static let onInk = Color("OnInk")
+    /// The page, the cards on it, and the one accent (used sparingly: counts, the opener, progress).
+    static let paper = Color("Paper")
+    static let surface = Color("Surface")
+    static let ember = Color("Ember")
+    static let hairline = Color("Ink").opacity(0.08)
 
     /// Spring presets, so every press and move feels like the same app.
     enum Motion {
@@ -32,105 +37,21 @@ enum Theme {
 
 // MARK: - Background
 
-/// A dreamy sky: a slowly breathing mesh gradient (sky, haze, meadow) with soft drifting light.
-/// Drawn once, behind the whole app. The light is radial gradients (no blur filters), and the whole layer is
-/// flattened into one Metal-backed image per frame, so it stays smooth while everything above it moves.
+/// The page: warm paper in light mode, warm charcoal in dark mode (never blue), with one soft light at the top.
+/// Flat and still, like Hinge or Uber: the photos are the colour, not the background.
 struct DreamBackground: View {
+    /// Kept for call sites; the page never animates.
     var animated = true
     @Environment(\.colorScheme) private var scheme
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1 / 24, paused: !animated || reduceMotion || Theme.stillMotion || scenePhase != .active)) { context in
-            let t = animated && !reduceMotion && !Theme.stillMotion ? context.date.timeIntervalSinceReferenceDate : 0
-            ZStack {
-                MeshGradient(width: 3, height: 3, points: points(t), colors: colors)
-                orbs(t)
-            }
-            .drawingGroup()
+        ZStack(alignment: .top) {
+            Theme.paper
+            RadialGradient(colors: [Theme.ember.opacity(scheme == .dark ? 0.10 : 0.07), .clear],
+                           center: .init(x: 0.85, y: 0), startRadius: 0, endRadius: 520)
         }
         .ignoresSafeArea()
         .accessibilityHidden(true)
-    }
-
-    private func points(_ t: Double) -> [SIMD2<Float>] {
-        let a = Float(sin(t * 0.13)) * 0.06, b = Float(cos(t * 0.11)) * 0.05, c = Float(sin(t * 0.07 + 1)) * 0.07
-        return [
-            [0, 0], [0.5 + a, 0], [1, 0],
-            [0, 0.45 + b], [0.5 + c, 0.5 + a], [1, 0.5 - b],
-            [0, 1], [0.5 - a, 1], [1, 1],
-        ]
-    }
-
-    /// The sky follows the time of day (like a real one): soft cream mornings, clear pale middays, warm golden
-    /// evenings and a deep night. Everything is low-saturation so glass and text stay calm and easy to read. No purple.
-    private var colors: [Color] {
-        // Dark mode gets the deep night sky; light mode stays light at every hour (a pale moonlit mist at night),
-        // so the dark ink text always reads.
-        if scheme == .dark { return Self.palette(.night) }
-        return Self.palette(TimeOfDay.now == .night ? .moonlit : TimeOfDay.now)
-    }
-
-    enum TimeOfDay {
-        case morning, day, evening, night, moonlit
-
-        static var now: TimeOfDay {
-            switch Calendar.current.component(.hour, from: Date()) {
-            case 5..<11: .morning
-            case 11..<17: .day
-            case 17..<21: .evening
-            default: .night
-            }
-        }
-    }
-
-    private static func c(_ hex: UInt32) -> Color {
-        Color(red: Double((hex >> 16) & 0xFF) / 255, green: Double((hex >> 8) & 0xFF) / 255, blue: Double(hex & 0xFF) / 255)
-    }
-
-    /// 3×3 mesh, top row sky, middle the horizon haze, bottom the ground.
-    static func palette(_ time: TimeOfDay) -> [Color] {
-        let hex: [UInt32]
-        switch time {
-        case .morning: hex = [0xD6E6F2, 0xE4EDF4, 0xDCE7F1,
-                              0xF5EDE2, 0xFBF5EC, 0xF1EFE7,
-                              0xDDE8D8, 0xE7EDDD, 0xD8E5D3]
-        case .day:     hex = [0xBFD9EF, 0xD3E6F5, 0xC8DFF2,
-                              0xEAF2F5, 0xF7F9F7, 0xE7F0F2,
-                              0xCFE2CA, 0xDCE9D4, 0xCBE0C6]
-        case .evening: hex = [0xE8D5C6, 0xF0DFD0, 0xDCD9D6,
-                              0xF7ECDF, 0xFCF4EA, 0xF2E9DD,
-                              0xDCE1D2, 0xE5E6D6, 0xD5DCCD]
-        case .moonlit: hex = [0xD3DCE8, 0xDFE6EF, 0xD7DFEA,
-                              0xEAEEF3, 0xF4F6F8, 0xE6EBF1,
-                              0xD5DED9, 0xDFE6E1, 0xD3DCD7]
-        case .night:   hex = [0x0D1621, 0x111C28, 0x0F1923,
-                              0x152230, 0x1A2833, 0x14212B,
-                              0x0E1B17, 0x12211B, 0x0F1A16]
-        }
-        return hex.map(c)
-    }
-
-    private func light(_ color: Color, _ opacity: Double, size: CGFloat) -> some View {
-        Circle()
-            .fill(RadialGradient(colors: [color.opacity(opacity), color.opacity(0)], center: .center, startRadius: 0, endRadius: size / 2))
-            .frame(width: size, height: size)
-    }
-
-    private func orbs(_ t: Double) -> some View {
-        GeometryReader { geo in
-            let w = geo.size.width, h = geo.size.height
-            let dark = scheme == .dark
-            ZStack {
-                light(.white, dark ? 0.12 : 0.55, size: w * 1.3)
-                    .position(x: w * (0.25 + 0.08 * sin(t * 0.09)), y: h * (0.18 + 0.04 * cos(t * 0.12)))
-                light(Color(red: 1, green: 0.92, blue: 0.84), dark ? 0.10 : 0.45, size: w * 1.1)
-                    .position(x: w * (0.8 + 0.06 * cos(t * 0.08)), y: h * (0.55 + 0.05 * sin(t * 0.1)))
-                light(.white, dark ? 0.08 : 0.30, size: w)
-                    .position(x: w * (0.4 + 0.1 * sin(t * 0.06 + 2)), y: h * (0.9 + 0.03 * cos(t * 0.09)))
-            }
-        }
     }
 }
 
@@ -239,20 +160,16 @@ private struct ShimmerModifier: ViewModifier {
 // MARK: - Glass
 
 extension View {
-    /// A clean glass card: Liquid Glass on iOS 26, frosted material with a hairline highlight before that.
+    /// A card on the page: a solid surface with a hairline and a soft shadow. (Named glassCard for call sites; glass is
+    /// kept for things that float over content: the tab bar and floating buttons.)
     @ViewBuilder
     func glassCard(cornerRadius: CGFloat = 28, tint: Color? = nil, interactive: Bool = false) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-        if #available(iOS 26.0, *) {
-            self.glassEffect(Glass.regular.tint(tint).interactive(interactive), in: shape)
-        } else {
-            self
-                .background(.thinMaterial, in: shape)
-                .background(tint.map { shape.fill($0) })
-                .overlay(shape.strokeBorder(LinearGradient(colors: [.white.opacity(0.7), .white.opacity(0.15)],
-                                                           startPoint: .top, endPoint: .bottom), lineWidth: 0.8))
-                .shadow(color: .black.opacity(0.06), radius: 20, y: 10)
-        }
+        self
+            .background(shape.fill(Theme.surface))
+            .background(tint.map { _ in shape.fill(Theme.surface) })
+            .overlay(shape.strokeBorder(Theme.hairline, lineWidth: 1))
+            .shadow(color: .black.opacity(0.05), radius: 16, y: 6)
     }
 
     /// Glass pill. Not interactive by default: on iOS 26 an interactive glass effect inside a Button's label can take
@@ -312,7 +229,9 @@ struct GlassButtonStyle: ButtonStyle {
             .padding(.vertical, 12)
             // The whole pill takes the tap: Liquid Glass alone doesn't count as tappable content.
             .contentShape(Capsule())
-            .glassCapsule(tint: .white.opacity(configuration.isPressed ? 0.35 : 0.12))
+            .background(Capsule().fill(Theme.surface))
+            .overlay(Capsule().strokeBorder(Theme.hairline, lineWidth: 1))
+            .shadow(color: .black.opacity(configuration.isPressed ? 0.02 : 0.05), radius: 8, y: 3)
             .scaleEffect(configuration.isPressed ? 0.96 : 1)
             .animation(Theme.Motion.snap, value: configuration.isPressed)
             .sensoryFeedback(.selection, trigger: configuration.isPressed) { _, pressed in pressed }
@@ -345,9 +264,12 @@ struct GlassChip: View {
             .padding(.vertical, 10)
             .contentShape(Capsule())
             .background {
-                if selected { Capsule().fill(Theme.ink).transition(.scale(scale: 0.9).combined(with: .opacity)) }
+                if selected {
+                    Capsule().fill(Theme.ink).transition(.scale(scale: 0.9).combined(with: .opacity))
+                } else {
+                    Capsule().fill(Theme.surface).overlay(Capsule().strokeBorder(Theme.hairline, lineWidth: 1))
+                }
             }
-            .glassCapsule(tint: selected ? nil : .white.opacity(0.1))
             .animation(Theme.Motion.snap, value: selected)
         }
         .buttonStyle(.plain)
