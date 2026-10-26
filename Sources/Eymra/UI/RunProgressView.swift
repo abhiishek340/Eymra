@@ -151,7 +151,7 @@ struct MagicView: View {
                 .scaleEffect(breathe * (1 + 0.5 * gather))
             Circle()
                 .trim(from: 0, to: overallProgress)
-                .stroke(Theme.ink.opacity(0.55), style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                .stroke(Theme.ember, style: StrokeStyle(lineWidth: 3, lineCap: .round))
                 .rotationEffect(.degrees(-90))
                 .frame(width: 76, height: 76)
                 .opacity(1 - gather)
