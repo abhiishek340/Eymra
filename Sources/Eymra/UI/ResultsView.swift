@@ -158,15 +158,23 @@ struct StoryCard: View {
                 .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                 .overlay(alignment: .topLeading) {
                     Text("\(pick.position)")
-                        .font(.system(size: 15, weight: .semibold, design: .serif))
+                        .font(.system(size: 15, weight: .bold, design: .serif))
                         .foregroundStyle(Theme.ink)
                         .frame(width: 34, height: 34)
-                        .glassCapsule(interactive: false)
-                        .padding(10)
+                        .background(Circle().fill(Theme.surface))
+                        .shadow(color: .black.opacity(0.15), radius: 6, y: 2)
+                        .padding(12)
                 }
                 .overlay(alignment: .topTrailing) {
                     HStack(spacing: 6) {
-                        if let role = pick.role { GlassTag(text: Explanations.roleName(role)) }
+                        if let role = pick.role {
+                            Text(Explanations.roleName(role))
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 10).padding(.vertical, 6)
+                                .background(Capsule().fill(Theme.ember))
+                                .shadow(color: Theme.ember.opacity(0.35), radius: 6, y: 3)
+                        }
                         if pick.isLocked {
                             Image(systemName: "lock.fill").font(.system(size: 12))
                                 .frame(width: 30, height: 30).glassCapsule(interactive: false)
@@ -261,8 +269,9 @@ struct DayRibbon: View {
         let first = scenes.first?.start ?? Date(), last = scenes.last?.end ?? Date()
         let span = max(1, last.timeIntervalSince(first))
         GeometryReader { geo in
-            let w = geo.size.width - 24
-            let x = { (date: Date) in 12 + w * CGFloat(date.timeIntervalSince(first) / span) }
+            // Keep dots and photos inside the card: photos are 34 pt wide and stack 9 pt to the right.
+            let w = geo.size.width - 64
+            let x = { (date: Date) in 26 + w * CGFloat(date.timeIntervalSince(first) / span) }
             ZStack(alignment: .topLeading) {
                 Capsule().fill(Theme.ink.opacity(0.12)).frame(height: 3).offset(y: 70)
                 ForEach(scenes) { scene in

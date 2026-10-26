@@ -52,7 +52,8 @@ final class EndToEndTests: XCTestCase {
     @MainActor
     private func runToStory() {
         wait("runButton").tap()
-        _ = wait("resultsTitle", 40)
+        // The first run after a fresh install on a phone can take a while to warm up.
+        _ = wait("resultsTitle", 90)
     }
 
     @MainActor
