@@ -16,6 +16,17 @@ nonisolated enum RangePreset: String, CaseIterable, Identifiable, Sendable {
         case .custom: String(localized: "Custom")
         }
     }
+
+    /// Compact label for the chips under the day chart.
+    var short: String {
+        switch self {
+        case .today: String(localized: "Today")
+        case .yesterday: String(localized: "Yesterday")
+        case .last3: String(localized: "3 days")
+        case .last7: String(localized: "Week")
+        case .custom: String(localized: "Custom")
+        }
+    }
 }
 
 @MainActor @Observable
@@ -42,6 +53,16 @@ final class RunViewModel {
 
     // Outputs.
     private(set) var photoCount: Int?
+    /// A few photos from the chosen time, for the hero stack on Create.
+    private(set) var previewIDs: [String] = []
+    /// Photos taken on each of the last 7 days (oldest first), for the day chart.
+    private(set) var days: [DayCount] = []
+
+    struct DayCount: Identifiable, Equatable {
+        var start: Date
+        var count: Int
+        var id: Date { start }
+    }
     private(set) var phase: Phase = .idle
     var result: RunResult?
     var showResults = false
@@ -99,8 +120,45 @@ final class RunViewModel {
         let source = app.source, range = range
         countTask = Task {
             let n = await source.count(in: range)
-            if !Task.isCancelled { photoCount = n }
+            guard !Task.isCancelled else { return }
+            photoCount = n
+            // A spread of up to 5 photos for the hero.
+            let records = (try? await source.records(in: range)) ?? []
+            guard !Task.isCancelled else { return }
+            let step = max(1, records.count / 5)
+            previewIDs = Array(stride(from: 0, to: records.count, by: step).map { records[$0].id }.suffix(5))
         }
+        if days.isEmpty { refreshDays() }
+    }
+
+    func refreshDays() {
+        let source = app.source, cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        Task {
+            var out: [DayCount] = []
+            for back in (0..<7).reversed() {
+                guard let start = cal.date(byAdding: .day, value: -back, to: today),
+                      let end = cal.date(byAdding: .day, value: 1, to: start) else { continue }
+                out.append(DayCount(start: start, count: await source.count(in: DateInterval(start: start, end: min(end, Date())))))
+            }
+            days = out
+        }
+    }
+
+    /// Picks one day from the chart.
+    func selectDay(_ day: DayCount) {
+        let cal = Calendar.current
+        if cal.isDateInToday(day.start) { preset = .today; return }
+        if cal.isDateInYesterday(day.start) { preset = .yesterday; return }
+        customStart = day.start
+        customEnd = cal.date(byAdding: .day, value: 1, to: day.start)?.addingTimeInterval(-1) ?? day.start
+        preset = .custom
+    }
+
+    /// Whether a day falls inside the chosen time.
+    func isSelected(_ day: DayCount) -> Bool {
+        let r = range
+        return day.start < r.end && day.start.addingTimeInterval(86_400) > r.start
     }
 
     // MARK: Running
