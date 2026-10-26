@@ -18,26 +18,28 @@ nonisolated enum FaceEmbedder {
         var signature: [Float]
     }
 
-    /// Signatures for the given faces (Vision observations from the same image), largest first up to the limit.
-    static func signatures(for faces: [FaceObservation], in image: CGImage, limit: Int = Tuning.maxFacePrints) async -> [[Float]] {
+    /// Signatures for the faces found in a photo, largest first up to the limit.
+    ///
+    /// Find, then zoom: faces are found on the small rendition, but each one is read from a square crop around it,
+    /// taken from a sharper copy of the photo when the face is small (`zoom` fetches it), and enlarged before Vision
+    /// looks for the eyes, nose and mouth. Tiny faces in group and scenic shots get enough pixels to be recognised.
+    static func signatures(for faces: [FaceObservation], in image: CGImage, limit: Int = Tuning.maxFacePrints,
+                           zoom: (@Sendable () async -> CGImage?)? = nil) async -> [[Float]] {
         guard !faces.isEmpty else { return [] }
-        let width = Double(image.width), height = Double(image.height)
-        let readable = faces.indices
-            .filter { faces[$0].boundingBox.cgRect.width * width >= Tuning.minFacePixels }
-            .sorted { faces[$0].boundingBox.cgRect.width > faces[$1].boundingBox.cgRect.width }
-            .prefix(limit)
-        guard !readable.isEmpty else { return faces.map { _ in [] } }
-
-        var request = DetectFaceLandmarksRequest()
-        request.inputFaceObservations = readable.map { faces[$0] }
-        let handler = ImageRequestHandler(image, orientation: .up)
-        guard let landmarked = try? await handler.perform(request) else { return faces.map { _ in [] } }
-
+        let boxes = faces.map { FeatureExtractor.upperLeft($0.boundingBox.cgRect) }
+        let order = boxes.indices.sorted { boxes[$0].width > boxes[$1].width }.prefix(limit)
+        let smallest = order.map { CGFloat(boxes[$0].width) * CGFloat(image.width) }.min() ?? 0
+        var source = image
+        if smallest < Tuning.zoomBelowPixels, let zoom, let sharper = await zoom(), sharper.width > image.width {
+            source = sharper
+        }
         var out = faces.map { _ in [Float]() }
-        for (slot, face) in zip(readable, landmarked) {
-            guard let points = fivePoints(face, imageSize: CGSize(width: width, height: height)),
-                  let signature = await FaceRecognizer.shared.signature(of: image, landmarks: points) else { continue }
-            out[slot] = signature
+        for i in order {
+            let facePixels = CGFloat(boxes[i].width) * CGFloat(source.width)
+            guard facePixels >= Tuning.minFacePixels,
+                  let crop = zoomedCrop(source, face: boxes[i]),
+                  let signature = await signatureOfCentralFace(in: crop) else { continue }
+            out[i] = signature
         }
         return out
     }
@@ -46,10 +48,46 @@ nonisolated enum FaceEmbedder {
     static func largestFace(in image: CGImage) async -> (crop: CGImage, signature: [Float])? {
         let handler = ImageRequestHandler(image, orientation: .up)
         guard let faces = try? await handler.perform(DetectFaceRectanglesRequest()),
-              let face = faces.max(by: { $0.boundingBox.cgRect.width < $1.boundingBox.cgRect.width }),
-              let crop = crop(image, face: FeatureExtractor.upperLeft(face.boundingBox.cgRect)) else { return nil }
-        let signature = await signatures(for: [face], in: image, limit: 1).first ?? []
-        return (crop, signature)
+              let face = faces.max(by: { $0.boundingBox.cgRect.width < $1.boundingBox.cgRect.width }) else { return nil }
+        let box = FeatureExtractor.upperLeft(face.boundingBox.cgRect)
+        guard let display = crop(image, face: box) else { return nil }
+        let signature = await zoomedCrop(image, face: box).asyncMap { await signatureOfCentralFace(in: $0) } ?? nil
+        return (display, signature ?? [])
+    }
+
+    /// A square around the face (2.2× its size), enlarged so the face is at least ~180 px wide.
+    static func zoomedCrop(_ image: CGImage, face box: NormRect) -> CGImage? {
+        let w = CGFloat(image.width), h = CGFloat(image.height)
+        let side = CGFloat(max(box.width * Float(w), box.height * Float(h))) * 2.2
+        let rect = CGRect(x: CGFloat(box.midX) * w - side / 2, y: CGFloat(box.midY) * h - side / 2, width: side, height: side)
+            .intersection(CGRect(x: 0, y: 0, width: w, height: h)).integral
+        guard rect.width >= 16, rect.height >= 16, let cut = image.cropping(to: rect) else { return nil }
+        let target = max(CGFloat(cut.width), 400)
+        guard target > CGFloat(cut.width) else { return cut }
+        let scale = target / CGFloat(cut.width)
+        let tw = Int(target), th = Int(CGFloat(cut.height) * scale)
+        guard let ctx = CGContext(data: nil, width: tw, height: th, bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { return cut }
+        ctx.interpolationQuality = .high
+        ctx.draw(cut, in: CGRect(x: 0, y: 0, width: tw, height: th))
+        return ctx.makeImage() ?? cut
+    }
+
+    /// Finds the face nearest the centre of a face crop, its landmarks, and its signature.
+    static func signatureOfCentralFace(in crop: CGImage) async -> [Float]? {
+        let handler = ImageRequestHandler(crop, orientation: .up)
+        guard let faces = try? await handler.perform(DetectFaceRectanglesRequest()), !faces.isEmpty else { return nil }
+        let centre = CGPoint(x: 0.5, y: 0.5)
+        let face = faces.min { a, b in
+            hypot(a.boundingBox.cgRect.midX - centre.x, a.boundingBox.cgRect.midY - centre.y)
+                < hypot(b.boundingBox.cgRect.midX - centre.x, b.boundingBox.cgRect.midY - centre.y)
+        }
+        guard let face else { return nil }
+        var request = DetectFaceLandmarksRequest()
+        request.inputFaceObservations = [face]
+        guard let landmarked = try? await handler.perform(request).first,
+              let points = fivePoints(landmarked, imageSize: CGSize(width: crop.width, height: crop.height)) else { return nil }
+        return await FaceRecognizer.shared.signature(of: crop, landmarks: points)
     }
 
     /// Eyes, nose and mouth corners in image pixels (upper-left origin), ordered for the template.
@@ -108,10 +146,22 @@ actor FaceRecognizer {
     }
 
     /// Aligns the face to 112×112 with the 5 landmarks and returns its unit-length signature.
+    /// The mirror trick: the face and its mirror image are both read and averaged, which steadies turned faces.
     func signature(of image: CGImage, landmarks: [FaceAlignment.Point]) -> [Float]? {
         guard let transform = FaceAlignment.similarity(from: landmarks),
               let buffer = Self.alignedBuffer(image, transform),
-              let first = loadedModel() else { return nil }
+              let plain = embed(buffer) else { return nil }
+        var values = plain
+        if let mirrored = Self.alignedBuffer(image, transform, mirrored: true), let other = embed(mirrored) {
+            values = zip(plain, other).map { $0 + $1 }
+        }
+        let norm = values.reduce(0) { $0 + $1 * $1 }.squareRoot()
+        guard norm > 0 else { return nil }
+        return values.map { $0 / norm }
+    }
+
+    private func embed(_ buffer: CVPixelBuffer) -> [Float]? {
+        guard let first = loadedModel() else { return nil }
         let output: FaceEmbeddingOutput
         do {
             output = try first.prediction(face: buffer)
@@ -121,15 +171,11 @@ actor FaceRecognizer {
             output = retry
         }
         let array = output.embedding
-        var values = (0..<array.count).map { Float(truncating: array[$0]) }
-        let norm = values.reduce(0) { $0 + $1 * $1 }.squareRoot()
-        guard norm > 0 else { return nil }
-        values = values.map { $0 / norm }
-        return values
+        return (0..<array.count).map { Float(truncating: array[$0]) }
     }
 
     /// Draws the image through the similarity transform into a 112×112 BGRA pixel buffer.
-    static func alignedBuffer(_ image: CGImage, _ t: FaceAlignment.Similarity) -> CVPixelBuffer? {
+    static func alignedBuffer(_ image: CGImage, _ t: FaceAlignment.Similarity, mirrored: Bool = false) -> CVPixelBuffer? {
         let side = Int(FaceAlignment.size)
         var buffer: CVPixelBuffer?
         let attrs = [kCVPixelBufferCGImageCompatibilityKey: true, kCVPixelBufferCGBitmapContextCompatibilityKey: true] as CFDictionary
@@ -149,8 +195,16 @@ actor FaceRecognizer {
         let toUpperLeft = CGAffineTransform(a: 1, b: 0, c: 0, d: -1, tx: 0, ty: h)
         let align = CGAffineTransform(a: t.a, b: t.b, c: -t.b, d: t.a, tx: t.tx, ty: t.ty)
         let toBottomLeft = CGAffineTransform(a: 1, b: 0, c: 0, d: -1, tx: 0, ty: s)
-        ctx.concatenate(toUpperLeft.concatenating(align).concatenating(toBottomLeft))
+        let mirror = mirrored ? CGAffineTransform(a: -1, b: 0, c: 0, d: 1, tx: s, ty: 0) : .identity
+        ctx.concatenate(toUpperLeft.concatenating(align).concatenating(mirror).concatenating(toBottomLeft))
         ctx.draw(image, in: CGRect(x: 0, y: 0, width: CGFloat(image.width), height: h))
         return buffer
+    }
+}
+
+private extension Optional {
+    func asyncMap<T>(_ transform: (Wrapped) async -> T) async -> T? {
+        guard let value = self else { return nil }
+        return await transform(value)
     }
 }

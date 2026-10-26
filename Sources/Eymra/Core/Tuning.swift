@@ -1,4 +1,5 @@
 import Foundation
+import CoreGraphics
 
 /// Every threshold and weight the pipeline uses. Change values here, record the reason in DECISIONS.md.
 nonisolated enum Tuning {
@@ -49,8 +50,16 @@ nonisolated enum Tuning {
     /// Faces per photo that get a signature, largest first.
     static let maxFacePrints = 6
     static let faceCropMargin: Float = 0.25
-    /// Faces narrower than this (pixels, in the 1024 px rendition) are too small to recognise reliably.
-    static let minFacePixels: Double = 40
+    /// Faces narrower than this (pixels, in the sharpest copy we read them from) are too small to recognise.
+    static let minFacePixels: CGFloat = 24
+    /// Faces narrower than this in the 1024 px rendition are read from a sharper copy of the photo instead.
+    static let zoomBelowPixels: CGFloat = 160
+    /// Long edge of that sharper copy.
+    static let zoomLongEdge: Double = 3072
+    /// Faces this close to your profile join your references for the run, so turned or looking-down shots of you
+    /// can match confident shots from the same day. Only matches against the profile count, so it can't chain.
+    static let meConfident: Float = 0.55
+    static let maxRunReferences = 24
     /// Same person at or above this cosine. LFW with 5-point alignment: different people's 99th percentile is 0.30,
     /// the published threshold 0.363; 0.40 trades a little recall for no false matches.
     static let meSimilarity: Float = 0.40
