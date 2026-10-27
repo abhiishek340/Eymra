@@ -266,6 +266,27 @@ final class RunViewModel {
         if let target { swap(target, with: photoID) }
     }
 
+    /// Faces in the candidates that might be you, best first (the ones worth asking about).
+    var unsureFaces: [UnsureFace] {
+        guard let r = result else { return [] }
+        let ranked = r.picks.map(\.photoID) + r.candidates
+        var seen = Set<String>()
+        return ranked.compactMap { id in
+            guard seen.insert(id).inserted else { return nil }
+            return r.scores[id]?.unsureFace
+        }
+        .prefix(12)
+        .map { $0 }
+    }
+
+    /// Saves "Is this you?" answers and picks again with them.
+    func answerFaces(me: [UnsureFace], notMe: [UnsureFace]) {
+        guard !me.isEmpty || !notMe.isEmpty else { return }
+        app.account.answer(confirmed: me.map(\.print), notMe: notMe.map(\.print))
+        toast = String(localized: "Got it. Eymra will remember.")
+        rerun()
+    }
+
     /// Hides a photo for good and re-runs, keeping locks.
     func hide(_ photoID: String) {
         Task {

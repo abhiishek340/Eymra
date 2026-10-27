@@ -9,6 +9,7 @@ struct ResultsView: View {
     @State private var showShare = false
     @State private var exporting = false
     @Namespace private var zoom
+    @State private var checkingFaces = false
 
     var body: some View {
         ScrollView {
@@ -44,6 +45,9 @@ struct ResultsView: View {
                 .navigationTransition(.zoom(sourceID: pick.photoID, in: zoom))
         }
         .sheet(isPresented: $showShare) { ShareSheet(items: shareItems) }
+        .sheet(isPresented: $checkingFaces) {
+            FaceCheckSheet(faces: vm.unsureFaces) { me, notMe in vm.answerFaces(me: me, notMe: notMe) }
+        }
         .overlay { if selected == nil { ToastOverlay(message: $vm.toast) } }
         .edgeSwipeBack { vm.showResults = false }
 
@@ -86,7 +90,13 @@ struct ResultsView: View {
                 .riseIn(delay: 0.35)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("\(r.picks.count) photos, picked from \(r.stats.photoCount)")
+                .accessibilityValue(r.stats.recognisedMe ? String(localized: "Found you") : "")
                 .accessibilityIdentifier("resultsTitle")
+            let unsure = vm.unsureFaces
+            if !unsure.isEmpty {
+                FaceCheckCard(faces: unsure) { checkingFaces = true }
+                    .riseIn(delay: 0.45)
+            }
             DayRibbon(result: r)
                 .riseIn(delay: 0.5)
             MixBar(picks: r.picks)
