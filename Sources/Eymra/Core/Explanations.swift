@@ -60,6 +60,7 @@ nonisolated enum Explanations {
         case .belowCut(let rank): String(localized: "Good, but it came #\(rank) and just missed out")
         case .hidden: String(localized: "You hid this one")
         case .categoryQuota: String(localized: "We already have enough of this kind of photo")
+        case .identityUnconfirmed: String(localized: "Me only picks photos where we're sure it's you")
         }
     }
 

@@ -147,8 +147,8 @@ final class EndToEndTests: XCTestCase {
         XCTAssertEqual(count.label, "11")
         app.buttons["Fewer"].tap()
 
-        bringIntoView(app.buttons["More of me"])
-        for focus in ["More of me", "More places", "A mix"] {
+        bringIntoView(app.buttons["Only photos of me"])
+        for focus in ["Only photos of me", "More places", "A mix"] {
             app.buttons[focus].tap()
             XCTAssertTrue(app.buttons[focus].isSelected, "\(focus) selected")
         }
@@ -330,6 +330,19 @@ final class EndToEndTests: XCTestCase {
         signOut.tap()
         app.buttons.matching(NSPredicate(format: "label == 'Sign out'")).element(boundBy: 1).tap()
         XCTAssertTrue(wait("onboardingStart").exists)
+    }
+
+    @MainActor
+    func testConfidentMatchesCanBeReviewed() {
+        launch()
+        runToStory()
+        let review = wait("reviewMatchedFaces")
+        scrollTo(review)
+        review.tap()
+        XCTAssertTrue(app.buttons["faceNotMe"].firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Check these matches. If Eymra picked someone else, choose Not me. Your answers are remembered."].exists)
+        app.buttons["Close"].tap()
+        XCTAssertTrue(wait("resultsTitle").exists)
     }
 
     @MainActor

@@ -73,7 +73,7 @@ struct FaceCheckSheet: View {
                 VStack(alignment: .leading, spacing: 18) {
                     (Text("Is this ") + Text("you").italic().foregroundColor(Theme.ember) + Text("?"))
                         .font(.system(size: 34, weight: .semibold, design: .serif))
-                    Text("Eymra wasn't sure about these. Your answers are remembered.")
+                    Text("Check these matches. If Eymra picked someone else, choose Not me. Your answers are remembered.")
                         .font(.system(size: 14)).foregroundStyle(Theme.inkSoft)
                     LazyVGrid(columns: columns, spacing: 14) {
                         ForEach(faces, id: \.photoID) { face in

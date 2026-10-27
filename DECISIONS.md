@@ -123,3 +123,15 @@ Each entry: what the spec said, what was done, why.
 - **A better face scan.** Every capture is turned upright first (quarter turns until the head roll is under 30°), checked with Vision's face capture quality, and rejected if the face fills more than 62% of the width or doesn't match the earlier captures at 0.45 or more. The scan says why ("a bit closer than needed", "too blurry").
 - "More of me" now only favours photos that are really you, not photos of other people.
 - UI tests keep the face scan in a temporary folder, so running them on a phone never touches the owner's real scan.
+
+## Round 9: who is in the photo comes first (2026-10-26)
+- **A bug round 8 missed.** When no photo in a run matched your face for sure, the pipeline threw your face profile away and scored the run again without it. That brought back "a big face means you", so close-ups of friends were called You. The profile now stays, whatever happens.
+- **Framing never decides who it is.** Without a face scan, a photo with people in it is "Someone", not You or a group of you and friends. The deeper picks step can't add a people label either.
+- **Me means only photos of you.** The Me option (now called "Only photos of me") only picks photos where your face matched for sure. It never fills the count with other people; it shows fewer photos and says why. Two exceptions:
+  - If you aren't found at all, or there's no face scan yet, Me falls back to a mix and says so, so you never get an empty story.
+  - A photo you locked or swapped in yourself stays, even if it isn't you.
+- **No chained matches.** Faces that matched during a run no longer join your references. One wrong match used to become evidence for more. Only the face scan and your own "Is this you?" answers count.
+- **Unknown stays unknown.** A photo with one readable friend and one unreadable face isn't "not you". Broken or empty face signatures are never compared.
+- **Reading the right face after zooming in.** The zoomed crop keeps where the original face was. The app only reads a face that overlaps it (IoU 0.3 or more), and skips the photo if two faces do. Before, it took whichever face was nearest the centre, which could be the person next to you. Feature schema 5, so faces are read again once.
+- **Fixing confident mistakes.** "Check who is in these photos" lists every matched face, not just the unsure ones, so a wrong match can be marked Not me.
+- **Still to do.** The 0.50 and 0.38 thresholds came from LFW pairs, not real camera rolls. They need checking on real trips with look-alike friends before claiming any accuracy number. `reports/` has a research note suggesting EdgeFace and AuraFace may have licences that allow shipping. Worth a benchmark once the licence of the exact weights is confirmed.

@@ -45,8 +45,11 @@ nonisolated enum Selection {
     static func select(candidates: [Candidate], count: Int, mix: Mix, locked: [String] = [],
                        prefs: UserPrefs = UserPrefs()) -> Result {
         let byID = Dictionary(candidates.map { ($0.photoID, $0) }, uniquingKeysWith: { a, _ in a })
+        // Me only picks photos that are surely you, and never relaxes that to fill the count.
+        // Locked photos were chosen by the user, so they stay whatever the mix.
+        let eligible = candidates.filter { mix != .moreOfMe || $0.withMe == true }
         var selected: [Candidate] = locked.compactMap { byID[$0] }
-        var remaining = candidates.filter { c in !selected.contains { $0.photoID == c.photoID } }
+        var remaining = eligible.filter { c in !selected.contains { $0.photoID == c.photoID } }
         var active = Set(Constraint.allCases)
         var relaxed: [Constraint] = []
 
@@ -73,7 +76,7 @@ nonisolated enum Selection {
         var value = Tuning.mmrLambda * c.relevance - (1 - Tuning.mmrLambda) * maxSim
         if !selected.contains(where: { $0.category == c.category }) { value += Tuning.newCategoryBonus }
         switch mix {
-        case .moreOfMe where c.category.isMe || (c.category == .group && c.withMe != false): value += Tuning.mixBonus
+        case .moreOfMe where c.withMe == true: value += Tuning.mixBonus
         case .moreScenery where c.category == .view || c.category == .meWithView: value += Tuning.mixBonus
         default: break
         }

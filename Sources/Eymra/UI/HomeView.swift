@@ -188,7 +188,7 @@ struct SetupView: View {
 
     private var focusSection: some View {
         HStack(spacing: 8) {
-            focusOption(.moreOfMe, symbol: "person.fill", short: "Me", label: "More of me")
+            focusOption(.moreOfMe, symbol: "person.fill", short: "Me", label: "Only photos of me")
             focusOption(.balanced, symbol: "circle.grid.2x2.fill", short: "Mix", label: "A mix")
             focusOption(.moreScenery, symbol: "mountain.2.fill", short: "Places", label: "More places")
         }

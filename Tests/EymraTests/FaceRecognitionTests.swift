@@ -18,6 +18,25 @@ private func imageURL(_ name: String, relativeTo pairs: URL) -> URL {
 }
 
 struct FaceRecognitionTests {
+    @Test func zoomedDetectionMustBelongToTheOriginalFace() {
+        let target = NormRect(x: 0.05, y: 0.3, width: 0.25, height: 0.4)
+        let neighbor = NormRect(x: 0.4, y: 0.3, width: 0.25, height: 0.4)
+        // The neighbor is nearer the crop centre; it must not replace the target at the clipped edge.
+        #expect(FaceEmbedder.targetFaceIndex(in: [neighbor, target], target: target) == 1)
+        #expect(FaceEmbedder.targetFaceIndex(in: [neighbor], target: target) == nil)
+        #expect(FaceEmbedder.targetFaceIndex(in: [target, target], target: target) == nil)
+    }
+
+    @Test func clippedZoomPreservesTargetCoordinates() throws {
+        let ctx = try #require(CGContext(data: nil, width: 1000, height: 1000, bitsPerComponent: 8, bytesPerRow: 0,
+                                         space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue))
+        let image = try #require(ctx.makeImage())
+        let crop = try #require(FaceEmbedder.zoomedCrop(image, face: NormRect(x: 0, y: 0.4, width: 0.1, height: 0.1)))
+        #expect(crop.target.x == 0)
+        #expect(crop.target.midX < 0.4)
+        #expect(crop.image.width >= 400)
+    }
+
     /// One photo against one photo (the model check). The app is stricter: it compares against several references
     /// and only counts 0.50+ as sure.
     static let pairThreshold: Float = 0.40
