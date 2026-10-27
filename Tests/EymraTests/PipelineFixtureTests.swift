@@ -179,6 +179,26 @@ struct PipelineFixtureTests {
         #expect(r.picks.count == 10)
     }
 
+    @Test func aTurnedAwayFaceIsUnsureNotFriends() async throws {
+        let e = try env()
+        let r = try await e.pipeline.run(e.config, options: .init(me: e.fixtures.meReference))
+        let turned = try e.must(kind: "me", moment: "lakeMeB")
+        #expect(r.scores[turned]?.withMe == nil)
+        #expect(r.scores[turned]?.unsureFace != nil)
+        #expect(r.scores[turned]?.category != .friends)
+    }
+
+    @Test func answeringThisIsMeMakesItSure() async throws {
+        let e = try env()
+        let r = try await e.pipeline.run(e.config, options: .init(me: e.fixtures.meReference))
+        let turned = try e.must(kind: "me", moment: "lakeMeB")
+        var reference = try #require(e.fixtures.meReference)
+        reference.confirmed = [try #require(r.scores[turned]?.unsureFace?.print)]
+        let again = try await e.pipeline.run(e.config, options: .init(me: reference))
+        #expect(again.scores[turned]?.withMe == true)
+        #expect(again.scores[turned]?.unsureFace == nil)
+    }
+
     @Test func storyHasAnOpenerAndACloser() async throws {
         let e = try env()
         let r = try await e.pipeline.run(e.config, options: .init(me: e.fixtures.meReference))

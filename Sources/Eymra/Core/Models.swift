@@ -126,6 +126,28 @@ nonisolated struct MeReference: Codable, Sendable, Hashable {
     var prints: [[Float]]
     /// How the prints were made; older ones are re-made from the saved face crops.
     var version: Int? = nil
+    /// Faces you said were you ("This is me"), kept apart from the scan so a rescan can keep them.
+    var confirmed: [[Float]] = []
+    /// Faces you said were not you ("Not me").
+    var notMe: [[Float]] = []
+
+    /// Everything that counts as you: the scan plus what you confirmed.
+    var allPrints: [[Float]] { prints + confirmed }
+
+    init(prints: [[Float]], version: Int? = nil, confirmed: [[Float]] = [], notMe: [[Float]] = []) {
+        self.prints = prints
+        self.version = version
+        self.confirmed = confirmed
+        self.notMe = notMe
+    }
+
+    init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        prints = try c.decode([[Float]].self, forKey: .prints)
+        version = try c.decodeIfPresent(Int.self, forKey: .version)
+        confirmed = try c.decodeIfPresent([[Float]].self, forKey: .confirmed) ?? []
+        notMe = try c.decodeIfPresent([[Float]].self, forKey: .notMe) ?? []
+    }
 
     /// 2: zoomed, re-detected face crops with the mirror trick.
     static let currentVersion = 2
@@ -267,6 +289,16 @@ nonisolated struct PhotoScore: Codable, Sendable, Hashable {
     var exclusion: ExclusionTag?
     /// Whether the user is in the photo: nil when we can't tell (no face set up, or no face prints).
     var withMe: Bool? = nil
+    /// A face that might be you but isn't sure enough; the app asks.
+    var unsureFace: UnsureFace? = nil
+}
+
+/// A face Eymra isn't sure is you, kept so the app can ask "Is this you?".
+nonisolated struct UnsureFace: Codable, Sendable, Hashable {
+    var photoID: String
+    var box: NormRect
+    var print: [Float]
+    var similarity: Float
 }
 
 nonisolated struct JudgeVerdict: Codable, Sendable, Hashable {

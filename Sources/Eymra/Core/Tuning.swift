@@ -60,9 +60,13 @@ nonisolated enum Tuning {
     /// can match confident shots from the same day. Only matches against the profile count, so it can't chain.
     static let meConfident: Float = 0.55
     static let maxRunReferences = 24
-    /// Same person at or above this cosine. LFW with 5-point alignment: different people's 99th percentile is 0.30,
-    /// the published threshold 0.363; 0.40 trades a little recall for no false matches.
-    static let meSimilarity: Float = 0.40
+    /// Definitely you at or above this. Measured with 5 references per person over ~12,000 comparisons with other
+    /// people (LFW): no other person ever scored above 0.506, and 98–99.5 % of genuine photos score above 0.50.
+    static let meSure: Float = 0.50
+    /// Between meMaybe and meSure the app isn't sure and asks "Is this you?". Below meMaybe: not you.
+    static let meMaybe: Float = 0.38
+    /// A face this close to one you marked "Not me" is not you (unless it's closer to you).
+    static let notMeSimilarity: Float = 0.50
     /// Two shots only count as the same moment if their faces are the same people: each face needs a match in the
     /// other shot at or above this. Lower than meSimilarity, because the same person across a burst of poses can
     /// drift a little; different people sit below 0.30 (LFW 99th percentile).

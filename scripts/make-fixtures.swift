@@ -255,7 +255,9 @@ for (index, s) in shots.enumerated() {
         let size: Float = s.kind == .me ? 0.32 : (s.kind == .group ? 0.16 : 0.06)
         let x: Float = s.faces == 1 ? 0.4 : 0.1 + 0.6 * Float(f) / Float(max(1, s.faces - 1))
         // In group shots the user is the first face; a "notMe" shot shows a friend only.
-        let identity = (f == 0 && !s.notMe) ? meFace : friendFaces[(f + (s.notMe ? 0 : 3)) % friendFaces.count]
+        var identity = (f == 0 && !s.notMe) ? meFace : friendFaces[(f + (s.notMe ? 0 : 3)) % friendFaces.count]
+        // One pose at the lake is turned away: it only partly looks like you, so the app should ask.
+        if s.moment == "lakeMeB" { identity = unit((0..<dim).map { 0.47 * meFace[$0] + 0.88 * friendFaces[2][$0] }) }
         faces.append(Face(box: Box(x: x, y: 0.3, width: size, height: size * 0.75),
                           captureQuality: min(1, 0.55 + s.boost + 0.1 * rng.float()),
                           eyesClosed: s.eyesClosed, smiling: s.boost > 0.12, print: facePrint(identity)))

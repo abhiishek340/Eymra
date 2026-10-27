@@ -50,9 +50,16 @@ nonisolated enum Scoring {
             // Who is in it: the user's face index, or nil; withMe is nil when we can't tell.
             var meIndex: Int?
             var withMe: Bool?
+            var unsure: UnsureFace?
             if let me, !f.faces.isEmpty, Identity.canTell(f.faces, reference: me) {
                 meIndex = Identity.meFace(in: f.faces, reference: me)
                 withMe = meIndex != nil
+                // Not sure either way: don't count it as you or as friends; ask instead.
+                if meIndex == nil, let maybe = Identity.maybeFace(in: f.faces, reference: me) {
+                    withMe = nil
+                    unsure = UnsureFace(photoID: id, box: f.faces[maybe.index].box, print: f.faces[maybe.index].print,
+                                        similarity: maybe.similarity)
+                }
             }
             let people = f.faces.isEmpty ? nil : peopleScore(f.faces, meIndex: meIndex)
             var q: Float
@@ -86,7 +93,7 @@ nonisolated enum Scoring {
             if let tag { excluded[id] = tag }
             scores[id] = PhotoScore(photoID: id, technical: t, aesthetic: a, composition: c, people: people,
                                     quality: q, cropFit: fits, category: CategoryRules.category(for: f, withMe: withMe),
-                                    exclusion: tag, withMe: withMe)
+                                    exclusion: tag, withMe: withMe, unsureFace: unsure)
         }
 
         // Winners: highest Q among surviving members; ties on later capture, then identifier.
