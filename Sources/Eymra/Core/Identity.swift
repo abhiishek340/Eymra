@@ -5,9 +5,15 @@ import Foundation
 nonisolated enum Identity {
     static func similarity(_ a: [Float], _ b: [Float]) -> Float? {
         guard !a.isEmpty, a.count == b.count else { return nil }
-        var dot: Float = 0
-        for i in a.indices { dot += a[i] * b[i] }
-        return dot
+        var dot: Float = 0, normA: Float = 0, normB: Float = 0
+        for i in a.indices {
+            guard a[i].isFinite, b[i].isFinite else { return nil }
+            dot += a[i] * b[i]
+            normA += a[i] * a[i]
+            normB += b[i] * b[i]
+        }
+        guard normA > 0, normB > 0, normA.isFinite, normB.isFinite, dot.isFinite else { return nil }
+        return max(-1, min(1, (dot / normA.squareRoot()) / normB.squareRoot()))
     }
 
     /// Best similarity between a face and anything that counts as you.
@@ -52,21 +58,6 @@ nonisolated enum Identity {
     /// True when at least one face in the photo can be compared with the user.
     static func canTell(_ faces: [FaceFeature], reference: MeReference) -> Bool {
         faces.contains { face in reference.allPrints.contains { similarity(face.print, $0) != nil } }
-    }
-
-    /// Your references for one run: your profile, plus faces from this run that match the profile confidently.
-    /// A shot of you looking down can then match a clear shot from the same day (same light, same clothes).
-    /// Only faces close to the profile itself are added, so the set can't drift towards a look-alike friend.
-    static func runReference(_ profile: MeReference, faces: [[Float]]) -> MeReference {
-        let confident = faces
-            .compactMap { f in similarity(f, to: profile).map { (f, $0) } }
-            .filter { $0.1 >= Tuning.meConfident && verdict($0.0, reference: profile)?.0 != .notMe }
-            .sorted { $0.1 > $1.1 }
-            .prefix(Tuning.maxRunReferences)
-            .map(\.0)
-        var run = profile
-        run.prints += confident
-        return run
     }
 
     /// Keeps reference signatures that agree with each other, so a stray face (someone walking past during the scan,

@@ -50,18 +50,16 @@ nonisolated enum Tuning {
     /// Faces per photo that get a signature, largest first.
     static let maxFacePrints = 6
     static let faceCropMargin: Float = 0.25
+    /// Geometric association after zooming, not an identity threshold. Multiple overlapping detections abstain.
+    static let faceAssociationMinIoU: Float = 0.3
     /// Faces narrower than this (pixels, in the sharpest copy we read them from) are too small to recognise.
     static let minFacePixels: CGFloat = 24
     /// Faces narrower than this in the 1024 px rendition are read from a sharper copy of the photo instead.
     static let zoomBelowPixels: CGFloat = 160
     /// Long edge of that sharper copy.
     static let zoomLongEdge: Double = 3072
-    /// Faces this close to your profile join your references for the run, so turned or looking-down shots of you
-    /// can match confident shots from the same day. Only matches against the profile count, so it can't chain.
-    static let meConfident: Float = 0.55
-    static let maxRunReferences = 24
-    /// Definitely you at or above this. Measured with 5 references per person over ~12,000 comparisons with other
-    /// people (LFW): no other person ever scored above 0.506, and 98–99.5 % of genuine photos score above 0.50.
+    /// Provisional acceptance threshold, not a probability or a guarantee of identity. Needs calibration with
+    /// held-out personal-library positives and look-alike negatives using the deployed multi-reference matcher.
     static let meSure: Float = 0.50
     /// Between meMaybe and meSure the app isn't sure and asks "Is this you?". Below meMaybe: not you.
     static let meMaybe: Float = 0.38

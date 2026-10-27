@@ -87,17 +87,17 @@ actor CurationPipeline {
         // Stage 5 – scoring and winners.
         report(.scoring, 0, analysed.count)
         timer.begin(.scoring)
-        var scored = Scoring.score(photos: photoByID, features: features, scenes: scenes, groups: groups,
+        let scored = Scoring.score(photos: photoByID, features: features, scenes: scenes, groups: groups,
                                    primaryRatio: preset.primaryRatio, me: options.me)
-        if options.me != nil {
-            if scored.scores.values.contains(where: { $0.withMe == true }) {
-                stats.recognisedMe = true
-            } else {
-                // Set up but never found: treat everyone the same rather than calling every face "friends".
-                scored = Scoring.score(photos: photoByID, features: features, scenes: scenes, groups: groups,
-                                       primaryRatio: preset.primaryRatio, me: nil)
-                stats.meNote = String(localized: "We couldn't spot you in these photos, so we treated everyone the same.")
-            }
+        let recognised = scored.scores.values.contains { $0.withMe == true }
+        stats.recognisedMe = recognised
+        // Me only picks photos that are surely you. With nothing to go on, an empty story helps no one,
+        // so fall back to a mix and say why. The profile is kept either way: framing never stands in for identity.
+        let mix: Mix = config.mix == .moreOfMe && !recognised ? .balanced : config.mix
+        if options.me == nil && config.mix == .moreOfMe {
+            stats.meNote = String(localized: "Add your face in You so Me can find your photos. Here's a mix for now.")
+        } else if options.me != nil && !recognised {
+            stats.meNote = String(localized: "We couldn't spot you for sure in these photos, so here's a mix. Check any faces we weren't sure about.")
         }
         timer.end()
         report(.scoring, analysed.count, analysed.count)
@@ -106,6 +106,7 @@ actor CurationPipeline {
         excluded.merge(scored.excluded) { a, _ in a }
 
         // Locks: a locked runner-up becomes its cluster's winner for this run.
+        // A photo you chose yourself stays, even in Me mode.
         let locked = options.locked.filter { scores[$0] != nil && excluded[$0] == nil }
         for id in locked {
             if let i = clusters.firstIndex(where: { $0.memberIDs.contains(id) }), clusters[i].winnerID != id {
@@ -135,8 +136,8 @@ actor CurationPipeline {
                         // The judge can't know who the user is: "me" from it only means "a person fills the frame".
                         // Who is in a photo comes from face recognition alone; the judge only refines the rest.
                         guard let current = scores[id]?.category else { continue }
-                        if options.me != nil && (current.isPeople || v.category.isPeople) { continue }
-                        scores[id]?.category = v.category
+                        if current.isPeople { continue }
+                        scores[id]?.category = v.category.isPeople ? .someone : v.category
                     }
                     if let title = out.title, !title.isEmpty { storyTitle = title }
                     stats.judgeUsed = !verdicts.isEmpty
@@ -157,6 +158,22 @@ actor CurationPipeline {
         report(.selection, 0, 0)
         let sceneSizes = Dictionary(uniqueKeysWithValues: scenes.map { ($0.id, Float($0.photoIDs.count)) })
         let biggestScene = sceneSizes.values.max() ?? 1
+        // A broad visual cluster can contain a recognized user and an unreadable or different person.
+        // Preserve the best eligible member before selection, even when the judge preferred another member.
+        if mix == .moreOfMe {
+            for i in clusters.indices {
+                let eligible = clusters[i].memberIDs.filter { scores[$0]?.withMe == true && excluded[$0] == nil }
+                let best = eligible.sorted { a, b in
+                    let qa = scores[a]?.quality ?? 0, qb = scores[b]?.quality ?? 0
+                    let ra = verdicts[a].map { (1 - Tuning.judgeWeight) * qa + Tuning.judgeWeight * $0.score } ?? qa
+                    let rb = verdicts[b].map { (1 - Tuning.judgeWeight) * qb + Tuning.judgeWeight * $0.score } ?? qb
+                    return ra != rb ? ra > rb : a < b
+                }.first
+                if !locked.contains(clusters[i].winnerID), let best, best != clusters[i].winnerID {
+                    Self.promote(best, in: &clusters[i])
+                }
+            }
+        }
         let candidates: [Selection.Candidate] = clusters.compactMap { c in
             guard let s = scores[c.winnerID], let p = photoByID[c.winnerID] else { return nil }
             let q = s.quality
@@ -168,8 +185,11 @@ actor CurationPipeline {
         }.sorted { $0.relevance != $1.relevance ? $0.relevance > $1.relevance : $0.photoID < $1.photoID }
         let count = min(config.count, preset.maxCount)
         timer.begin(.selection)
-        let selection = Selection.select(candidates: candidates, count: count, mix: config.mix, locked: locked,
+        let selection = Selection.select(candidates: candidates, count: count, mix: mix, locked: locked,
                                          prefs: config.prefs)
+        if mix == .moreOfMe && selection.shortfall > 0 {
+            stats.meNote = String(localized: "Me only picks photos where we're sure it's you. Check any faces we weren't sure about to add more.")
+        }
         timer.end()
 
         // Stage 8 – ordering, reasons, exclusion tags.
@@ -206,6 +226,15 @@ actor CurationPipeline {
             }
         }
         excluded.merge(Selection.exclusionTags(candidates: candidates, ordered: ordered, count: count)) { a, _ in a }
+        if mix == .moreOfMe {
+            for (id, score) in scores where score.withMe != true && score.exclusion == nil {
+                // Keep reasons that point at a pick, so swapping in replaces the right photo.
+                switch excluded[id] {
+                case .nearDuplicate(_?), .sameBackground, .sceneCap: continue
+                default: excluded[id] = .identityUnconfirmed
+                }
+            }
+        }
         for id in selection.selected where excluded[id] != nil { excluded[id] = nil }
 
         report(.selection, 1, 1, samples: ordered)

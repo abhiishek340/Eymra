@@ -41,8 +41,8 @@ struct SelectionTests {
     }
 
     @Test func mixShiftsTheBalance() {
-        let c = [Make.candidate("me", scene: "a", r: 0.6, category: .me, print: Make.vector(0)),
-                 Make.candidate("view", scene: "b", r: 0.62, category: .view, print: Make.vector(4))]
+        let c = [Make.candidate("me", scene: "a", r: 0.6, category: .me, print: Make.vector(0), withMe: true),
+                 Make.candidate("view", scene: "b", r: 0.7, category: .view, print: Make.vector(4))]
         #expect(Selection.select(candidates: c, count: 1, mix: .moreOfMe).selected == ["me"])
         #expect(Selection.select(candidates: c, count: 1, mix: .moreScenery).selected == ["view"])
     }
@@ -52,6 +52,26 @@ struct SelectionTests {
                  Make.candidate("friendGroup", scene: "b", r: 0.62, category: .group, print: Make.vector(4), withMe: false),
                  Make.candidate("me", scene: "c", r: 0.6, category: .me, print: Make.vector(8), withMe: true)]
         #expect(Selection.select(candidates: c, count: 1, mix: .moreOfMe).selected == ["me"])
+    }
+
+    @Test func personalSinglePickCannotBeOutrankedByAFriend() {
+        let c = [Make.candidate("friend", r: 1, category: .friends, print: Make.vector(4), withMe: false),
+                 Make.candidate("me", r: 0.4, category: .me, print: Make.vector(0), withMe: true)]
+        #expect(Selection.select(candidates: c, count: 1, mix: .moreOfMe).selected == ["me"])
+    }
+
+    @Test func personalPicksReportShortfallInsteadOfRelaxingIdentity() {
+        let c = [Make.candidate("friend", r: 1, category: .friends, print: Make.vector(4), withMe: false),
+                 Make.candidate("back", r: 1, category: .someone, print: Make.vector(8)),
+                 Make.candidate("assumed", r: 1, category: .me, print: Make.vector(12)),
+                 Make.candidate("me", r: 0.4, category: .me, print: Make.vector(0), withMe: true)]
+        let r = Selection.select(candidates: c, count: 4, mix: .moreOfMe)
+        #expect(r.selected == ["me"])
+        #expect(r.shortfall == 3)
+        // A photo the user locked stays, even if it isn't them.
+        #expect(Set(Selection.select(candidates: c, count: 4, mix: .moreOfMe, locked: ["friend"]).selected) == ["friend", "me"])
+        #expect(Selection.select(candidates: Array(c.prefix(3)), count: 1, mix: .moreOfMe).selected.isEmpty)
+        #expect(Selection.select(candidates: c, count: 4, mix: .balanced).selected.count == 4)
     }
 
     @Test func relaxesWhenTheCountCannotBeMetAndReportsIt() {

@@ -171,11 +171,12 @@ nonisolated enum ExclusionTag: Codable, Sendable, Hashable {
     case belowCut(rank: Int)
     case hidden
     case categoryQuota
+    case identityUnconfirmed
 
     /// True for tags decided before selection (the photo never competed for a slot).
     var isHardReject: Bool {
         switch self {
-        case .nearDuplicate, .sameBackground, .sceneCap, .belowCut, .categoryQuota: false
+        case .nearDuplicate, .sameBackground, .sceneCap, .belowCut, .categoryQuota, .identityUnconfirmed: false
         default: true
         }
     }
@@ -227,7 +228,7 @@ nonisolated struct FaceFeature: Codable, Sendable, Hashable {
 
 nonisolated enum FeatureSchema {
     /// Bump whenever stage 2 changes what it stores.
-    static let version = 4
+    static let version = 5
 }
 
 nonisolated struct FeatureRecord: Codable, Sendable, Hashable {
@@ -293,6 +294,8 @@ nonisolated struct PhotoScore: Codable, Sendable, Hashable {
     var withMe: Bool? = nil
     /// A face that might be you but isn't sure enough; the app asks.
     var unsureFace: UnsureFace? = nil
+    /// The accepted face remains reviewable too: confidence must not make a wrong match uncorrectable.
+    var matchedFace: UnsureFace? = nil
 }
 
 /// A face Eymra isn't sure is you, kept so the app can ask "Is this you?".

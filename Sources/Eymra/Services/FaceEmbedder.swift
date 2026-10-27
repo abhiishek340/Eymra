@@ -38,7 +38,7 @@ nonisolated enum FaceEmbedder {
             let facePixels = CGFloat(boxes[i].width) * CGFloat(source.width)
             guard facePixels >= Tuning.minFacePixels,
                   let crop = zoomedCrop(source, face: boxes[i]),
-                  let signature = await signatureOfCentralFace(in: crop) else { continue }
+                  let signature = await signatureOfTargetFace(in: crop) else { continue }
             out[i] = signature
         }
         return out
@@ -66,7 +66,7 @@ nonisolated enum FaceEmbedder {
         var qualityRequest = DetectFaceCaptureQualityRequest()
         qualityRequest.inputFaceObservations = [face]
         let quality = (try? await handler.perform(qualityRequest))?.first?.captureQuality?.score
-        let signature = await zoomedCrop(image, face: box).asyncMap { await signatureOfCentralFace(in: $0) } ?? nil
+        let signature = await zoomedCrop(image, face: box).asyncMap { await signatureOfTargetFace(in: $0) } ?? nil
         return OwnFace(crop: display, signature: signature ?? [], quality: quality, widthShare: box.width)
     }
 
@@ -104,39 +104,57 @@ nonisolated enum FaceEmbedder {
         return ctx.makeImage()
     }
 
-    /// A square around the face (2.2× its size), enlarged so the face is at least ~180 px wide.
-    static func zoomedCrop(_ image: CGImage, face box: NormRect) -> CGImage? {
+    struct TargetCrop {
+        var image: CGImage
+        /// Original detection mapped into the crop, including edge clipping. Resizing preserves this box.
+        var target: NormRect
+    }
+
+    /// Enlarging helps landmark detection; it does not recover missing facial detail.
+    static func zoomedCrop(_ image: CGImage, face box: NormRect) -> TargetCrop? {
         let w = CGFloat(image.width), h = CGFloat(image.height)
         let side = CGFloat(max(box.width * Float(w), box.height * Float(h))) * 2.2
         let rect = CGRect(x: CGFloat(box.midX) * w - side / 2, y: CGFloat(box.midY) * h - side / 2, width: side, height: side)
             .intersection(CGRect(x: 0, y: 0, width: w, height: h)).integral
         guard rect.width >= 16, rect.height >= 16, let cut = image.cropping(to: rect) else { return nil }
+        let targetBox = NormRect(x: Float((CGFloat(box.x) * w - rect.minX) / rect.width),
+                                 y: Float((CGFloat(box.y) * h - rect.minY) / rect.height),
+                                 width: Float(CGFloat(box.width) * w / rect.width),
+                                 height: Float(CGFloat(box.height) * h / rect.height))
+        let cropped = TargetCrop(image: cut, target: targetBox)
         let target = max(CGFloat(cut.width), 400)
-        guard target > CGFloat(cut.width) else { return cut }
+        guard target > CGFloat(cut.width) else { return cropped }
         let scale = target / CGFloat(cut.width)
         let tw = Int(target), th = Int(CGFloat(cut.height) * scale)
         guard let ctx = CGContext(data: nil, width: tw, height: th, bitsPerComponent: 8, bytesPerRow: 0,
-                                  space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { return cut }
+                                  space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { return cropped }
         ctx.interpolationQuality = .high
         ctx.draw(cut, in: CGRect(x: 0, y: 0, width: tw, height: th))
-        return ctx.makeImage() ?? cut
+        return TargetCrop(image: ctx.makeImage() ?? cut, target: targetBox)
     }
 
-    /// Finds the face nearest the centre of a face crop, its landmarks, and its signature.
-    static func signatureOfCentralFace(in crop: CGImage) async -> [Float]? {
-        let handler = ImageRequestHandler(crop, orientation: .up)
-        guard let faces = try? await handler.perform(DetectFaceRectanglesRequest()), !faces.isEmpty else { return nil }
-        let centre = CGPoint(x: 0.5, y: 0.5)
-        let face = faces.min { a, b in
-            hypot(a.boundingBox.cgRect.midX - centre.x, a.boundingBox.cgRect.midY - centre.y)
-                < hypot(b.boundingBox.cgRect.midX - centre.x, b.boundingBox.cgRect.midY - centre.y)
+    /// Associates a fresh detection with the original face. A neighbor or ambiguous overlap is not evidence.
+    static func targetFaceIndex(in boxes: [NormRect], target: NormRect) -> Int? {
+        let matches = boxes.indices.filter { i in
+            let intersection = boxes[i].intersectionArea(target)
+            let union = boxes[i].area + target.area - intersection
+            return union > 0 && intersection / union >= Tuning.faceAssociationMinIoU
         }
-        guard let face else { return nil }
+        return matches.count == 1 ? matches.first : nil
+    }
+
+    static func signatureOfTargetFace(in crop: TargetCrop) async -> [Float]? {
+        let image = crop.image
+        let handler = ImageRequestHandler(image, orientation: .up)
+        guard let faces = try? await handler.perform(DetectFaceRectanglesRequest()), !faces.isEmpty else { return nil }
+        let boxes = faces.map { FeatureExtractor.upperLeft($0.boundingBox.cgRect) }
+        guard let index = targetFaceIndex(in: boxes, target: crop.target) else { return nil }
+        let face = faces[index]
         var request = DetectFaceLandmarksRequest()
         request.inputFaceObservations = [face]
         guard let landmarked = try? await handler.perform(request).first,
-              let points = fivePoints(landmarked, imageSize: CGSize(width: crop.width, height: crop.height)) else { return nil }
-        return await FaceRecognizer.shared.signature(of: crop, landmarks: points)
+              let points = fivePoints(landmarked, imageSize: CGSize(width: image.width, height: image.height)) else { return nil }
+        return await FaceRecognizer.shared.signature(of: image, landmarks: points)
     }
 
     /// Eyes, nose and mouth corners in image pixels (upper-left origin), ordered for the template.

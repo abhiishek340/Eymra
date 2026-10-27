@@ -3,15 +3,15 @@ import Testing
 
 struct CategoryRulesTests {
     @Test func groupBeatsEverything() {
-        #expect(CategoryRules.category(for: Make.feature("g", faces: 3, labels: [("food", 0.9)])) == .group)
+        #expect(CategoryRules.category(for: Make.feature("g", faces: 3, labels: [("food", 0.9)]), withMe: true) == .group)
     }
 
     @Test func bigFaceIsMe() {
-        #expect(CategoryRules.category(for: Make.feature("m", faces: 1, faceArea: 0.1)) == .me)
+        #expect(CategoryRules.category(for: Make.feature("m", faces: 1, faceArea: 0.1), withMe: true) == .me)
     }
 
     @Test func smallFaceOutdoorsIsMeWithView() {
-        #expect(CategoryRules.category(for: Make.feature("v", faces: 1, faceArea: 0.01, labels: [("mountain", 0.6)])) == .meWithView)
+        #expect(CategoryRules.category(for: Make.feature("v", faces: 1, faceArea: 0.01, labels: [("mountain", 0.6)]), withMe: true) == .meWithView)
     }
 
     @Test func foodViewAndDetail() {
@@ -25,19 +25,22 @@ struct CategoryRulesTests {
         #expect(CategoryRules.category(for: Make.feature("f", labels: [("food", 0.2)], saliency: nil)) == .other)
     }
 
-    @Test func withoutAFaceScanTheFramingDecides() {
-        #expect(CategoryRules.category(for: Make.feature("m", faces: 1, faceArea: 0.1), withMe: nil, knowsYou: false) == .me)
+    @Test func withoutAFaceScanIdentityStaysUnknown() {
+        #expect(CategoryRules.category(for: Make.feature("m", faces: 1, faceArea: 0.1)) == .someone)
+        var back = Make.feature("back", labels: [("mountain", 0.9)])
+        back.humanBoxes = [NormRect(x: 0.2, y: 0.1, width: 0.5, height: 0.8)]
+        #expect(CategoryRules.category(for: back) == .someone)
     }
 
     @Test func onceYourFaceIsKnownABigFaceIsNotEnough() {
         let close = Make.feature("m", faces: 1, faceArea: 0.1)
-        #expect(CategoryRules.category(for: close, withMe: true, knowsYou: true) == .me)
-        #expect(CategoryRules.category(for: close, withMe: false, knowsYou: true) == .friends)
-        #expect(CategoryRules.category(for: close, withMe: nil, knowsYou: true) == .someone)
+        #expect(CategoryRules.category(for: close, withMe: true) == .me)
+        #expect(CategoryRules.category(for: close, withMe: false) == .friends)
+        #expect(CategoryRules.category(for: close, withMe: nil) == .someone)
     }
 
     @Test func photosWithoutPeopleAreNeverSomeone() {
-        #expect(CategoryRules.category(for: Make.feature("f", labels: [("dessert", 0.8)]), withMe: nil, knowsYou: true) == .food)
+        #expect(CategoryRules.category(for: Make.feature("f", labels: [("dessert", 0.8)]), withMe: nil) == .food)
     }
 
     @Test func prefixMatchingCoversSubLabels() {

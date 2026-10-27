@@ -16,7 +16,9 @@ nonisolated enum Scoring {
                       primaryRatio: AspectRatio,
                       me profile: MeReference? = nil) -> Output {
         let ids = groups.flatMap(\.members).filter { features[$0] != nil && photos[$0] != nil }
-        let me = profile.map { p in Identity.runReference(p, faces: ids.flatMap { features[$0]?.faces.map(\.print) ?? [] }) }
+        // Only enrolled or explicitly confirmed faces may establish identity. Automatically adding a run's
+        // predictions lets one false match become evidence for other photos, and changes answers with the date range.
+        let me = profile
         let groupOf: [String: Int] = Dictionary(uniqueKeysWithValues: groups.enumerated().flatMap { gi, g in
             g.members.map { ($0, gi) }
         })
@@ -51,9 +53,19 @@ nonisolated enum Scoring {
             var meIndex: Int?
             var withMe: Bool?
             var unsure: UnsureFace?
+            var matched: UnsureFace?
             if let me, !f.faces.isEmpty, Identity.canTell(f.faces, reference: me) {
                 meIndex = Identity.meFace(in: f.faces, reference: me)
-                withMe = meIndex != nil
+                if meIndex != nil {
+                    withMe = true
+                    if let meIndex, let similarity = Identity.similarity(f.faces[meIndex].print, to: me) {
+                        matched = UnsureFace(photoID: id, box: f.faces[meIndex].box,
+                                             print: f.faces[meIndex].print, similarity: similarity)
+                    }
+                } else if f.faces.allSatisfy({ Identity.verdict($0.print, reference: me)?.0 == .notMe }),
+                          f.humanBoxes.count <= f.faces.count {
+                    withMe = false
+                }
                 // Not sure either way: don't count it as you or as friends; ask instead.
                 if meIndex == nil, let maybe = Identity.maybeFace(in: f.faces, reference: me) {
                     withMe = nil
@@ -92,8 +104,8 @@ nonisolated enum Scoring {
             }
             if let tag { excluded[id] = tag }
             scores[id] = PhotoScore(photoID: id, technical: t, aesthetic: a, composition: c, people: people,
-                                    quality: q, cropFit: fits, category: CategoryRules.category(for: f, withMe: withMe, knowsYou: me != nil),
-                                    exclusion: tag, withMe: withMe, unsureFace: unsure)
+                                    quality: q, cropFit: fits, category: CategoryRules.category(for: f, withMe: withMe),
+                                    exclusion: tag, withMe: withMe, unsureFace: unsure, matchedFace: matched)
         }
 
         // Winners: highest Q among surviving members; ties on later capture, then identifier.

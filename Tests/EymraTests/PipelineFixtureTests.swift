@@ -40,11 +40,20 @@ struct PipelineFixtureTests {
     }
 
     private func env(judge: (any JudgeProvider)? = nil, judgeEnabled: Bool = false, count: Int = 10,
-                     platform: PlatformPreset.ID = .instagramCarousel, delay: Duration = .zero) throws -> Env {
+                     platform: PlatformPreset.ID = .instagramCarousel, delay: Duration = .zero,
+                     facePrint: [Float]? = nil) throws -> Env {
         let fixtures = try FixtureSet.load()
         let counter = Counter()
         let store = FeatureStore(modelContainer: try FeatureStore.makeContainer(inMemory: true))
-        let extractor = CountingExtractor(inner: FakeFeatureExtractor(features: fixtures.features), counter: counter, delay: delay)
+        var features = fixtures.features
+        if let facePrint {
+            for id in features.keys {
+                guard var feature = features[id] else { continue }
+                for i in feature.faces.indices { feature.faces[i].print = facePrint }
+                features[id] = feature
+            }
+        }
+        let extractor = CountingExtractor(inner: FakeFeatureExtractor(features: features), counter: counter, delay: delay)
         let pipeline = CurationPipeline(source: FixturePhotoSource(fixtures: fixtures), extractor: extractor, store: store, judge: judge)
         let dates = fixtures.entries.map(\.creationDate)
         let range = DateInterval(start: (dates.min() ?? Date()).addingTimeInterval(-60), end: (dates.max() ?? Date()).addingTimeInterval(60))
@@ -54,7 +63,7 @@ struct PipelineFixtureTests {
 
     @Test func picksTenDistinctMomentsWithVariety() async throws {
         let e = try env()
-        let r = try await e.pipeline.run(e.config)
+        let r = try await e.pipeline.run(e.config, options: .init(me: e.fixtures.meReference))
         #expect(r.stats.photoCount == 40)
         #expect(r.stats.sceneCount == 5)
         #expect(r.picks.count == 10)
@@ -222,13 +231,65 @@ struct PipelineFixtureTests {
         #expect(!rm.picks.contains { $0.category == .friends })
     }
 
-    @Test func faceSetUpButNeverFoundTreatsEveryoneTheSame() async throws {
+    @Test func faceSetUpButNeverFoundPreservesIdentityEvidence() async throws {
         let e = try env()
         let stranger = MeReference(prints: [Make.vector(31, dim: 32)])
         let r = try await e.pipeline.run(e.config, options: .init(me: stranger))
         #expect(!r.stats.recognisedMe)
         #expect(r.stats.meNote != nil)
-        #expect(!r.picks.contains { $0.category == .friends })
+        #expect(r.scores.values.allSatisfy { !$0.category.isMe && $0.withMe != true })
+        #expect(r.scores.values.contains { $0.category == .friends })
+    }
+
+    @Test func noConfidentMatchKeepsQuestionsEvenWithJudge() async throws {
+        let e = try env(judge: StubJudge(), judgeEnabled: true, facePrint: Make.vector(0, dim: 32))
+        // Supply controlled face vectors: every readable face is uncertain against this profile.
+        let unsure = MeReference(prints: [Make.vector(0, offset: 2, dim: 32)])
+        let r = try await e.pipeline.run(e.config, options: .init(me: unsure))
+        #expect(!r.stats.recognisedMe)
+        #expect(r.scores.values.contains { $0.unsureFace != nil })
+        #expect(r.scores.values.allSatisfy { !$0.category.isMe })
+    }
+
+    @Test func meModeFallsBackToAMixWhenYouCantBeFound() async throws {
+        let e = try env(judge: StubJudge(), judgeEnabled: true)
+        var config = e.config
+        config.mix = .moreOfMe
+        for reference in [nil, MeReference(prints: [Make.vector(31, dim: 32)])] {
+            let r = try await e.pipeline.run(config, options: .init(me: reference))
+            #expect(r.picks.count == 10)
+            #expect(r.stats.meNote != nil)
+            #expect(r.picks.allSatisfy { !$0.category.isMe && $0.score.withMe != true })
+            #expect(!r.excluded.values.contains(.identityUnconfirmed))
+        }
+    }
+
+    @Test func meModeKeepsAPhotoYouLockedYourself() async throws {
+        let e = try env(count: 20)
+        var config = e.config
+        config.mix = .moreOfMe
+        let first = try await e.pipeline.run(e.config, options: .init(me: e.fixtures.meReference))
+        let friend = try #require(first.scores.values.filter { $0.withMe == false && $0.exclusion == nil }.map(\.photoID).sorted().first)
+        let r = try await e.pipeline.run(config, options: .init(locked: [friend], me: e.fixtures.meReference))
+        #expect(r.picks.contains { $0.photoID == friend && $0.isLocked })
+        #expect(r.picks.filter { $0.photoID != friend }.allSatisfy { $0.score.withMe == true })
+    }
+
+    @Test func noProfileNeverInventsIdentityEvenWithJudge() async throws {
+        let e = try env(judge: StubJudge(), judgeEnabled: true)
+        let r = try await e.pipeline.run(e.config)
+        #expect(r.scores.values.allSatisfy { !$0.category.isMe && $0.withMe != true })
+        #expect(r.scores.values.contains { $0.category == .someone })
+    }
+
+    @Test func personalModeNeverFillsWithFriendsOrUnknowns() async throws {
+        let e = try env(judge: StubJudge(), judgeEnabled: true, count: 20)
+        var config = e.config
+        config.mix = .moreOfMe
+        let r = try await e.pipeline.run(config, options: .init(me: e.fixtures.meReference))
+        #expect(!r.picks.isEmpty)
+        #expect(r.picks.allSatisfy { $0.score.withMe == true })
+        #expect(r.stats.shortfall > 0)
     }
 
     @Test func judgeTitleIsUsed() async throws {
