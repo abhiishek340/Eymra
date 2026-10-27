@@ -71,8 +71,12 @@ nonisolated enum Tuning {
     /// other shot at or above this. Lower than meSimilarity, because the same person across a burst of poses can
     /// drift a little; different people sit below 0.30 (LFW 99th percentile).
     static let samePersonSimilarity: Float = 0.32
-    /// During face setup, angles that don't look like the straight-on capture (below this) are dropped.
-    static let enrolConsistency: Float = 0.35
+    /// During face setup, captures that don't look like the others (below this) are dropped.
+    static let enrolConsistency: Float = 0.45
+    /// Face setup rejects captures with Apple's capture quality below this (blur, dark, odd pose)…
+    static let enrolMinQuality: Float = 0.3
+    /// …and faces wider than this share of the frame (held too close: the wide lens distorts the face).
+    static let enrolMaxWidthShare: Float = 0.62
 
     // MARK: Personal preferences
     static let meShareMostlyMe: Float = 0.6

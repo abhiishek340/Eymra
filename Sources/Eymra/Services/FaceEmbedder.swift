@@ -44,15 +44,64 @@ nonisolated enum FaceEmbedder {
         return out
     }
 
-    /// The user's face in a photo or camera frame: the largest face, its crop for display, and its signature.
-    static func largestFace(in image: CGImage) async -> (crop: CGImage, signature: [Float])? {
+    /// Your own face from a scan frame or a photo you chose, with what's needed to judge whether it's a good reference.
+    struct OwnFace: Sendable {
+        var crop: CGImage
+        var signature: [Float]
+        /// Apple's face capture quality, 0–1 (sharpness, light, pose); nil when Vision can't tell.
+        var quality: Float?
+        /// Face width as a share of the frame width (very close selfies are distorted by the wide lens).
+        var widthShare: Float
+    }
+
+    /// The largest face, turned upright first: camera frames and some photos arrive sideways, and a sideways face
+    /// gives a weak reference.
+    static func ownFace(in original: CGImage) async -> OwnFace? {
+        let image = await upright(original)
         let handler = ImageRequestHandler(image, orientation: .up)
         guard let faces = try? await handler.perform(DetectFaceRectanglesRequest()),
               let face = faces.max(by: { $0.boundingBox.cgRect.width < $1.boundingBox.cgRect.width }) else { return nil }
         let box = FeatureExtractor.upperLeft(face.boundingBox.cgRect)
         guard let display = crop(image, face: box) else { return nil }
+        var qualityRequest = DetectFaceCaptureQualityRequest()
+        qualityRequest.inputFaceObservations = [face]
+        let quality = (try? await handler.perform(qualityRequest))?.first?.captureQuality?.score
         let signature = await zoomedCrop(image, face: box).asyncMap { await signatureOfCentralFace(in: $0) } ?? nil
-        return (display, signature ?? [])
+        return OwnFace(crop: display, signature: signature ?? [], quality: quality, widthShare: box.width)
+    }
+
+    /// The user's face in a photo or camera frame: the largest face, its crop for display, and its signature.
+    static func largestFace(in image: CGImage) async -> (crop: CGImage, signature: [Float])? {
+        guard let face = await ownFace(in: image) else { return nil }
+        return (face.crop, face.signature)
+    }
+
+    /// Turns the image by a quarter turn at a time until the largest face is upright (roll near zero).
+    static func upright(_ image: CGImage) async -> CGImage {
+        var best: (image: CGImage, roll: Double)?
+        for turns in [0, 1, 3, 2] {
+            guard let turned = turns == 0 ? image : rotate(image, quarterTurns: turns) else { continue }
+            let handler = ImageRequestHandler(turned, orientation: .up)
+            guard let face = (try? await handler.perform(DetectFaceRectanglesRequest()))?
+                .max(by: { $0.boundingBox.cgRect.width < $1.boundingBox.cgRect.width }) else { continue }
+            let roll = abs(face.roll.converted(to: .degrees).value)
+            if roll < 30 { return turned }
+            if best == nil || roll < (best?.roll ?? .infinity) { best = (turned, roll) }
+        }
+        return best?.image ?? image
+    }
+
+    /// Rotates by quarter turns clockwise.
+    static func rotate(_ image: CGImage, quarterTurns: Int) -> CGImage? {
+        let turns = ((quarterTurns % 4) + 4) % 4
+        let w = image.width, h = image.height
+        let (ow, oh) = turns % 2 == 0 ? (w, h) : (h, w)
+        guard let ctx = CGContext(data: nil, width: ow, height: oh, bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { return nil }
+        ctx.translateBy(x: CGFloat(ow) / 2, y: CGFloat(oh) / 2)
+        ctx.rotate(by: -CGFloat(turns) * .pi / 2)
+        ctx.draw(image, in: CGRect(x: -CGFloat(w) / 2, y: -CGFloat(h) / 2, width: CGFloat(w), height: CGFloat(h)))
+        return ctx.makeImage()
     }
 
     /// A square around the face (2.2× its size), enlarged so the face is at least ~180 px wide.
