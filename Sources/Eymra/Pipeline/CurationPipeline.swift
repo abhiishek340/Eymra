@@ -132,11 +132,11 @@ actor CurationPipeline {
                         if let i = clusters.firstIndex(where: { $0.id == clusterID }) { Self.promote(winner, in: &clusters[i]) }
                     }
                     for (id, v) in verdicts {
-                        // Claude can't know who the user is; keep "friends" when we know the user isn't in it.
-                        let withMe = scores[id]?.withMe
-                        if withMe == false && v.category.isPeople { scores[id]?.category = .friends }
-                        else if withMe == true && v.category == .group { scores[id]?.category = .group }
-                        else { scores[id]?.category = v.category }
+                        // The judge can't know who the user is: "me" from it only means "a person fills the frame".
+                        // Who is in a photo comes from face recognition alone; the judge only refines the rest.
+                        guard let current = scores[id]?.category else { continue }
+                        if options.me != nil && (current.isPeople || v.category.isPeople) { continue }
+                        scores[id]?.category = v.category
                     }
                     if let title = out.title, !title.isEmpty { storyTitle = title }
                     stats.judgeUsed = !verdicts.isEmpty

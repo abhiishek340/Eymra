@@ -73,7 +73,7 @@ nonisolated enum Selection {
         var value = Tuning.mmrLambda * c.relevance - (1 - Tuning.mmrLambda) * maxSim
         if !selected.contains(where: { $0.category == c.category }) { value += Tuning.newCategoryBonus }
         switch mix {
-        case .moreOfMe where c.category.isPeople && c.category != .friends: value += Tuning.mixBonus
+        case .moreOfMe where c.category.isMe || (c.category == .group && c.withMe != false): value += Tuning.mixBonus
         case .moreScenery where c.category == .view || c.category == .meWithView: value += Tuning.mixBonus
         default: break
         }

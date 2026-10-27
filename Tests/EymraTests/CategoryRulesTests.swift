@@ -25,6 +25,21 @@ struct CategoryRulesTests {
         #expect(CategoryRules.category(for: Make.feature("f", labels: [("food", 0.2)], saliency: nil)) == .other)
     }
 
+    @Test func withoutAFaceScanTheFramingDecides() {
+        #expect(CategoryRules.category(for: Make.feature("m", faces: 1, faceArea: 0.1), withMe: nil, knowsYou: false) == .me)
+    }
+
+    @Test func onceYourFaceIsKnownABigFaceIsNotEnough() {
+        let close = Make.feature("m", faces: 1, faceArea: 0.1)
+        #expect(CategoryRules.category(for: close, withMe: true, knowsYou: true) == .me)
+        #expect(CategoryRules.category(for: close, withMe: false, knowsYou: true) == .friends)
+        #expect(CategoryRules.category(for: close, withMe: nil, knowsYou: true) == .someone)
+    }
+
+    @Test func photosWithoutPeopleAreNeverSomeone() {
+        #expect(CategoryRules.category(for: Make.feature("f", labels: [("dessert", 0.8)]), withMe: nil, knowsYou: true) == .food)
+    }
+
     @Test func prefixMatchingCoversSubLabels() {
         #expect(CategoryRules.matches("food_other", in: CategoryRules.foodLabels))
         #expect(CategoryRules.matches("Water_Body", in: CategoryRules.sceneryLabels))

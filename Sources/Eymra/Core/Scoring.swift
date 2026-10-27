@@ -92,7 +92,7 @@ nonisolated enum Scoring {
             }
             if let tag { excluded[id] = tag }
             scores[id] = PhotoScore(photoID: id, technical: t, aesthetic: a, composition: c, people: people,
-                                    quality: q, cropFit: fits, category: CategoryRules.category(for: f, withMe: withMe),
+                                    quality: q, cropFit: fits, category: CategoryRules.category(for: f, withMe: withMe, knowsYou: me != nil),
                                     exclusion: tag, withMe: withMe, unsureFace: unsure)
         }
 

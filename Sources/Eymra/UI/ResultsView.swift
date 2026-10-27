@@ -370,6 +370,7 @@ extension Category {
         case .meWithView: Color(red: 0.36, green: 0.49, blue: 0.56)
         case .group: Color(red: 0.29, green: 0.54, blue: 0.50)
         case .friends: Color(red: 0.50, green: 0.62, blue: 0.73)
+        case .someone: Color(red: 0.58, green: 0.58, blue: 0.56)
         case .view: Color(red: 0.49, green: 0.66, blue: 0.48)
         case .food: Color(red: 0.84, green: 0.62, blue: 0.38)
         case .detail: Color(red: 0.67, green: 0.60, blue: 0.53)

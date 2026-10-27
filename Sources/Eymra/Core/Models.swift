@@ -74,9 +74,11 @@ nonisolated enum Category: String, Codable, Sendable, Hashable, CaseIterable {
     case group
     /// People, but not the user (only known once the user's face is set up).
     case friends
+    /// People, and the user's face is set up, but Eymra isn't sure whether one of them is the user.
+    case someone
     case view, food, detail, other
 
-    var isPeople: Bool { self == .me || self == .meWithView || self == .group || self == .friends }
+    var isPeople: Bool { self == .me || self == .meWithView || self == .group || self == .friends || self == .someone }
     /// Shots the user is in (as far as categories alone can tell).
     var isMe: Bool { self == .me || self == .meWithView }
 }
