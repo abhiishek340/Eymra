@@ -46,7 +46,7 @@ struct ResultsView: View {
         }
         .sheet(isPresented: $showShare) { ShareSheet(items: shareItems) }
         .sheet(isPresented: $checkingFaces) {
-            FaceCheckSheet(faces: vm.unsureFaces) { me, notMe in vm.answerFaces(me: me, notMe: notMe) }
+            FaceCheckSheet(faces: vm.reviewFaces) { me, notMe in vm.answerFaces(me: me, notMe: notMe) }
         }
         .overlay { if selected == nil { ToastOverlay(message: $vm.toast) } }
         .edgeSwipeBack { vm.showResults = false }
@@ -96,6 +96,11 @@ struct ResultsView: View {
             if !unsure.isEmpty {
                 FaceCheckCard(faces: unsure) { checkingFaces = true }
                     .riseIn(delay: 0.45)
+            }
+            if r.picks.contains(where: { $0.score.matchedFace != nil }) {
+                Button("Check who is in these photos") { checkingFaces = true }
+                    .font(.system(size: 14, weight: .medium))
+                    .accessibilityIdentifier("reviewMatchedFaces")
             }
             DayRibbon(result: r)
                 .riseIn(delay: 0.5)

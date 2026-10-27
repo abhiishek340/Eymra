@@ -279,6 +279,14 @@ final class RunViewModel {
         .map { $0 }
     }
 
+    /// Include confident picks so a false positive can be corrected, not just borderline matches.
+    var reviewFaces: [UnsureFace] {
+        guard let r = result else { return [] }
+        let ranked = unsureFaces + r.picks.compactMap { $0.score.matchedFace }
+        var seen = Set<String>()
+        return ranked.filter { seen.insert($0.photoID).inserted }
+    }
+
     /// Saves "Is this you?" answers and picks again with them.
     func answerFaces(me: [UnsureFace], notMe: [UnsureFace]) {
         guard !me.isEmpty || !notMe.isEmpty else { return }
