@@ -47,6 +47,13 @@ struct SelectionTests {
         #expect(Selection.select(candidates: c, count: 1, mix: .moreScenery).selected == ["view"])
     }
 
+    @Test func moreOfMeOnlyFavoursPhotosThatAreReallyYou() {
+        let c = [Make.candidate("stranger", scene: "a", r: 0.62, category: .someone, print: Make.vector(0)),
+                 Make.candidate("friendGroup", scene: "b", r: 0.62, category: .group, print: Make.vector(4), withMe: false),
+                 Make.candidate("me", scene: "c", r: 0.6, category: .me, print: Make.vector(8), withMe: true)]
+        #expect(Selection.select(candidates: c, count: 1, mix: .moreOfMe).selected == ["me"])
+    }
+
     @Test func relaxesWhenTheCountCannotBeMetAndReportsIt() {
         let c = (0..<4).map { Make.candidate("p\($0)", scene: "one", r: 0.9, category: .view, print: Make.vector($0 * 3)) }
         let result = Selection.select(candidates: c, count: 4, mix: .balanced)

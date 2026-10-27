@@ -114,3 +114,12 @@ Each entry: what the spec said, what was done, why.
 - **Measured on the iPhone 17 Pro:** full chain on 200 LFW pairs 98.5 % (was 97.5 %), 0 false matches. Faces shrunk to about 25 to 30 px in a wide frame: all 100 read, 97 % correct, 0 false matches (before, all skipped). Python reference: 30 px faces 97.9 %, 20 px faces 95.4 %.
 - **Models considered:** stronger models (InsightFace ArcFace weights, EdgeFace, GhostFaceNets) carry non-commercial or negotiated licences, and the one ready-made Swift ArcFace package is a paid service. SFace stays, as it's accurate and can ship commercially.
 - Feature schema 4 (faces are re-read once). Saved face scans are re-made automatically from the stored face crops (`MeReference.version`), so no rescan is needed.
+
+## Round 8: sure, unsure and not you (2026-10-26)
+- **Feedback:** photos of someone else were still shown as you.
+- **Two causes, neither of them the model.** First, the deeper picks step labels a photo "me" whenever one person fills the frame, because it can't know who the user is, and that label overwrote what face recognition said. Second, the saved face scan was three sideways, very close crops (one blurry). Read sideways, they matched each other at only 0.31 to 0.57; turned upright, 0.54 to 0.63.
+- **Who is in a photo now comes from face recognition only.** Once a face is set up, the deeper picks step can't change a people category in either direction. A photo with people where your face isn't recognised either way is "Someone", never "You".
+- **Three answers, not two.** At 0.50 or more a face is you; under 0.38 it isn't; in between, Eymra asks "Is this you?" with the face cut out of the photo. Answers are saved with the face scan and used in every later run (a "not me" answer wins when it's the closer match).
+- **A better face scan.** Every capture is turned upright first (quarter turns until the head roll is under 30°), checked with Vision's face capture quality, and rejected if the face fills more than 62% of the width or doesn't match the earlier captures at 0.45 or more. The scan says why ("a bit closer than needed", "too blurry").
+- "More of me" now only favours photos that are really you, not photos of other people.
+- UI tests keep the face scan in a temporary folder, so running them on a phone never touches the owner's real scan.

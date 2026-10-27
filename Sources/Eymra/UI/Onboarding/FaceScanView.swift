@@ -39,6 +39,8 @@ final class FaceScanModel {
     var cameraDenied = false
     var holdProgress: Double = 0
     var canSkipStep = false
+    /// Why the last capture was rejected, in plain words.
+    var hint: String?
     private var holdStart: Date?
     private var stepStart = Date()
     private var firstTurnSign: Float?
@@ -94,15 +96,35 @@ final class FaceScanModel {
         }
     }
 
+    /// Keeps a capture only if it makes a good reference: a readable face, not blurred, not held too close,
+    /// and looking like the captures before it. Otherwise says why and tries again.
     private func store(_ image: CGImage) async {
-        if let face = await FaceEmbedder.largestFace(in: image) {
-            captured[step] = face
-            haptic.impactOccurred()
-            advance()
+        defer {
+            capturing = false
+            holdStart = nil
+            holdProgress = 0
         }
-        capturing = false
-        holdStart = nil
-        holdProgress = 0
+        guard let face = await FaceEmbedder.ownFace(in: image), !face.signature.isEmpty else {
+            hint = String(localized: "We couldn't read your face. Face the light and try again.")
+            return
+        }
+        if face.widthShare > Tuning.enrolMaxWidthShare {
+            hint = String(localized: "A bit too close. Hold the phone further away.")
+            return
+        }
+        if let q = face.quality, q < Tuning.enrolMinQuality {
+            hint = String(localized: "A little blurry. Hold still, in good light.")
+            return
+        }
+        let others = captured.values.map(\.signature).filter { !$0.isEmpty }
+        if !others.isEmpty, let best = others.compactMap({ Identity.similarity(face.signature, $0) }).max(), best < Tuning.enrolConsistency {
+            hint = String(localized: "That didn't look like your other shots. Make sure it's only you in view.")
+            return
+        }
+        hint = nil
+        captured[step] = (face.crop, face.signature)
+        haptic.impactOccurred()
+        advance()
     }
 
     func skipStep() {
@@ -181,6 +203,14 @@ struct FaceScanView: View {
                     .multilineTextAlignment(.center)
                     .contentTransition(.opacity)
                     .accessibilityIdentifier("scanInstruction")
+                if let hint = model.hint {
+                    Text(hint)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Theme.ember)
+                        .multilineTextAlignment(.center)
+                        .transition(.opacity)
+                        .accessibilityIdentifier("scanHint")
+                }
                 Text("Step \(model.step.rawValue + 1) of \(ScanStep.allCases.count)")
                     .font(.footnote).foregroundStyle(Theme.inkSoft)
             }
@@ -302,17 +332,26 @@ struct FaceUploadView: View {
         working = true
         defer { working = false }
         var found: [(crop: CGImage, signature: [Float])] = []
+        var weak = 0
         for item in items {
             guard let data = try? await item.loadTransferable(type: Data.self),
                   let image = UIImage(data: data),
                   let cg = try? PhotoLibrary.upright(image),
-                  let face = await FaceEmbedder.largestFace(in: cg) else { continue }
-            found.append(face)
+                  let face = await FaceEmbedder.ownFace(in: cg), !face.signature.isEmpty else { continue }
+            if let q = face.quality, q < Tuning.enrolMinQuality { weak += 1; continue }
+            found.append((face.crop, face.signature))
         }
-        faces = found
-        message = found.isEmpty
-            ? String(localized: "We couldn't find a face in those photos. Try ones where your face is bigger and clearer.")
-            : String(localized: "Found you in \(found.count) of \(items.count) photos.")
+        // Keep only photos that agree with each other, so a friend in one of them doesn't become "you".
+        let agreeing = Set(Identity.consistentReferences(found.map(\.signature)).map { $0.description })
+        let kept = found.filter { agreeing.contains($0.signature.description) }
+        faces = kept
+        if kept.isEmpty {
+            message = String(localized: "We couldn't find a clear face in those photos. Try ones where your face is big, sharp and well lit.")
+        } else if kept.count < found.count || weak > 0 {
+            message = String(localized: "Using \(kept.count) of \(items.count) photos. The others were blurry or didn't look like the rest.")
+        } else {
+            message = String(localized: "Found you in \(kept.count) of \(items.count) photos.")
+        }
     }
 }
 

@@ -9,6 +9,7 @@ struct ResultsView: View {
     @State private var showShare = false
     @State private var exporting = false
     @Namespace private var zoom
+    @State private var checkingFaces = false
 
     var body: some View {
         ScrollView {
@@ -44,6 +45,9 @@ struct ResultsView: View {
                 .navigationTransition(.zoom(sourceID: pick.photoID, in: zoom))
         }
         .sheet(isPresented: $showShare) { ShareSheet(items: shareItems) }
+        .sheet(isPresented: $checkingFaces) {
+            FaceCheckSheet(faces: vm.unsureFaces) { me, notMe in vm.answerFaces(me: me, notMe: notMe) }
+        }
         .overlay { if selected == nil { ToastOverlay(message: $vm.toast) } }
         .edgeSwipeBack { vm.showResults = false }
 
@@ -86,7 +90,13 @@ struct ResultsView: View {
                 .riseIn(delay: 0.35)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("\(r.picks.count) photos, picked from \(r.stats.photoCount)")
+                .accessibilityValue(r.stats.recognisedMe ? String(localized: "Found you") : "")
                 .accessibilityIdentifier("resultsTitle")
+            let unsure = vm.unsureFaces
+            if !unsure.isEmpty {
+                FaceCheckCard(faces: unsure) { checkingFaces = true }
+                    .riseIn(delay: 0.45)
+            }
             DayRibbon(result: r)
                 .riseIn(delay: 0.5)
             MixBar(picks: r.picks)
@@ -360,6 +370,7 @@ extension Category {
         case .meWithView: Color(red: 0.36, green: 0.49, blue: 0.56)
         case .group: Color(red: 0.29, green: 0.54, blue: 0.50)
         case .friends: Color(red: 0.50, green: 0.62, blue: 0.73)
+        case .someone: Color(red: 0.58, green: 0.58, blue: 0.56)
         case .view: Color(red: 0.49, green: 0.66, blue: 0.48)
         case .food: Color(red: 0.84, green: 0.62, blue: 0.38)
         case .detail: Color(red: 0.67, green: 0.60, blue: 0.53)

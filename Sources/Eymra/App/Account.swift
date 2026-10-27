@@ -110,6 +110,24 @@ final class Account {
         return kept.count
     }
 
+    /// Your answers to "Is this you?". They're remembered and used in every pick from now on.
+    func answer(confirmed: [[Float]], notMe: [[Float]]) {
+        guard var reference = meReference else { return }
+        reference.confirmed += confirmed.filter { !$0.isEmpty }
+        reference.notMe += notMe.filter { !$0.isEmpty }
+        guard FaceReferenceStore.load() != nil else {
+            // No saved scan (UI tests use an in-memory reference): keep the answers in memory.
+            meReference = reference
+            return
+        }
+        do {
+            try FaceReferenceStore.addAnswers(confirmed: confirmed, notMe: notMe)
+        } catch {
+            Self.log.error("Saving face answers failed: \(error.localizedDescription, privacy: .public)")
+        }
+        reloadFace()
+    }
+
     func removeFace() {
         FaceReferenceStore.clear()
         reloadFace()

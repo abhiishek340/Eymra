@@ -65,3 +65,37 @@ struct RunReferenceTests {
         #expect(!reference.prints.contains(blurryYou))
     }
 }
+
+struct VerdictTests {
+    private let you = MeReference(prints: [Make.vector(0)])
+
+    @Test func sureUnsureAndNot() {
+        #expect(Identity.verdict(Make.vector(0, offset: 0.3), reference: you)?.0 == .me)          // ≈ 0.96
+        #expect(Identity.verdict(Make.vector(0, offset: 2.0), reference: you)?.0 == .maybe)       // ≈ 0.45
+        #expect(Identity.verdict(Make.vector(6), reference: you)?.0 == .notMe)                     // 0
+    }
+
+    @Test func notMeAnswersWin() {
+        let lookAlike = Make.vector(0, offset: 1.2)                                                 // ≈ 0.64, "sure"
+        #expect(Identity.verdict(lookAlike, reference: you)?.0 == .me)
+        var answered = you
+        answered.notMe = [lookAlike]
+        #expect(Identity.verdict(lookAlike, reference: answered)?.0 == .notMe)
+        // Still you when the face is closer to you than to the "Not me" answer.
+        #expect(Identity.verdict(Make.vector(0, offset: 0.1), reference: answered)?.0 == .me)
+    }
+
+    @Test func thisIsMeAnswersCount() {
+        let turnedAway = Make.vector(0, offset: 2.0)
+        var answered = you
+        answered.confirmed = [turnedAway]
+        #expect(Identity.verdict(turnedAway, reference: answered)?.0 == .me)
+    }
+
+    @Test func notMeFacesNeverBecomeRunReferences() {
+        let lookAlike = Make.vector(0, offset: 1.2)
+        var answered = you
+        answered.notMe = [lookAlike]
+        #expect(!Identity.runReference(answered, faces: [lookAlike]).prints.contains(lookAlike))
+    }
+}

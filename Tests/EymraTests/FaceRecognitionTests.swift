@@ -18,6 +18,10 @@ private func imageURL(_ name: String, relativeTo pairs: URL) -> URL {
 }
 
 struct FaceRecognitionTests {
+    /// One photo against one photo (the model check). The app is stricter: it compares against several references
+    /// and only counts 0.50+ as sure.
+    static let pairThreshold: Float = 0.40
+
     @Test func similarityTransformRecoversAKnownTransform() throws {
         // Rotate 10°, scale 2, shift (5, -3): the fit must recover it exactly from noise-free points.
         let angle = 10.0 * .pi / 180, s = 2.0
@@ -75,7 +79,7 @@ struct FaceRecognitionTests {
                   let cos = Identity.similarity(sa, sb) else { continue }
             total += 1
             drift.append(abs(Double(cos) - pair.pythonCos))
-            let match = cos >= Tuning.meSimilarity
+            let match = cos >= Self.pairThreshold
             if match == (pair.same == 1) { correct += 1 } else if match { falseMatches += 1 } else { missed += 1 }
         }
         let accuracy = Double(correct) / Double(max(1, total))
@@ -104,7 +108,7 @@ struct FaceRecognitionTests {
         for pair in pairs {
             guard let a = await signature(pair.a), let b = await signature(pair.b), let cos = Identity.similarity(a, b) else { continue }
             total += 1
-            let match = cos >= Tuning.meSimilarity
+            let match = cos >= Self.pairThreshold
             if match == (pair.same == 1) { correct += 1 } else if match { falseMatches += 1 }
         }
         if total == 0 {
@@ -148,7 +152,7 @@ struct FaceRecognitionTests {
             let signatures = await FaceEmbedder.signatures(for: faces, in: rendition, zoom: { sharp })
             guard let best = signatures.compactMap({ Identity.similarity($0, reference.signature) }).max() else { unread += 1; continue }
             total += 1
-            let match = best >= Tuning.meSimilarity
+            let match = best >= Self.pairThreshold
             if match == (pair.same == 1) { correct += 1 } else if match { falseMatches += 1 }
         }
         if total == 0 {

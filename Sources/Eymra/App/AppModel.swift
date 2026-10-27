@@ -22,7 +22,10 @@ final class AppModel {
     init(arguments: [String] = ProcessInfo.processInfo.arguments) {
         isUITesting = arguments.contains("-uiTesting")
         if isUITesting {
+            // Test runs must never touch the owner's real data on a phone: keys in memory, face scan in a temp folder,
+            // settings in their own suite, and an in-memory photo database (below).
             Keychain.useMemoryStore()
+            FaceReferenceStore.useTemporaryDirectoryForTests()
             let defaults = UserDefaults(suiteName: "eymra-uitests") ?? .standard
             defaults.removePersistentDomain(forName: "eymra-uitests")
             settings = Settings(defaults: defaults)

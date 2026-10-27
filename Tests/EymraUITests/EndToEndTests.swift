@@ -333,6 +333,24 @@ final class EndToEndTests: XCTestCase {
     }
 
     @MainActor
+    func testIsThisYou() {
+        launch()
+        runToStory()
+        let card = wait("faceCheckCard")
+        card.tap()
+        let me = app.buttons["faceMe"].firstMatch
+        XCTAssertTrue(me.waitForExistence(timeout: 5))
+        me.tap()
+        wait("faceCheckSave").tap()
+        // Eymra picks again with the answer (the old story leaves first); the face is now sure, so nothing is left to ask.
+        let gone = expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: element("faceCheckCard"))
+        wait(for: [gone], timeout: 90)
+        _ = wait("resultsTitle", 90)
+        // And Eymra still knows who you are (the answer was added, nothing was lost).
+        XCTAssertEqual(element("resultsTitle").value as? String, "Found you")
+    }
+
+    @MainActor
     func testTabsKeepTheirState() {
         launch()
         wait("platform-x").tap()
