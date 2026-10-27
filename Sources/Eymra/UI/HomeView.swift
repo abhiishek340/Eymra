@@ -34,6 +34,7 @@ struct CreateView: View {
 struct SetupView: View {
     @Environment(AppModel.self) private var app
     @Bindable var vm: RunViewModel
+    @Namespace private var focusPill
 
     var body: some View {
         ScrollView {
@@ -203,13 +204,17 @@ struct SetupView: View {
         } label: {
             VStack(spacing: 6) {
                 Image(systemName: symbol).font(.system(size: 20, weight: .medium))
+                    .popWhenSelected(selected)
                 Text(short).font(.system(size: 12, weight: .semibold))
             }
             .foregroundStyle(selected ? Theme.onInk : Theme.ink.opacity(0.7))
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
             .background {
-                if selected { RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Theme.ink) }
+                if selected {
+                    RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Theme.ink)
+                        .matchedGeometryEffect(id: "focus", in: focusPill)
+                }
             }
             .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         }
@@ -283,7 +288,7 @@ struct SetupView: View {
                 Image(systemName: "arrow.right").font(.system(size: 15, weight: .semibold))
             }
         }
-        .buttonStyle(.glassPrimary)
+        .buttonStyle(.glassPrimarySheen)
         .disabled(vm.photoCount == 0 || !app.access.isUsable)
         .padding(.horizontal, 20)
         .padding(.bottom, 84)
@@ -300,6 +305,10 @@ struct PhotoHero: View {
     let count: Int?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var float = false
+    @State private var dealt = false
+    @State private var stamped = false
+    /// Which print sits in which spot; a tap shuffles them.
+    @State private var turn = 0
 
     private struct Spot { var x: CGFloat; var y: CGFloat; var angle: Double; var w: CGFloat }
     private let spots: [Spot] = [
@@ -310,23 +319,36 @@ struct PhotoHero: View {
     var body: some View {
         ZStack {
             let shown = Array(ids.prefix(spots.count))
-            ForEach(Array(spots.enumerated()), id: \.offset) { i, spot in
+            ForEach(Array(spots.enumerated()), id: \.offset) { i, _ in
+                let spot = spots[(i + turn) % spots.count]
+                let front = (i + turn) % spots.count == 2
                 printCard(id: i < shown.count ? shown[i] : nil, width: spot.w)
-                    .rotationEffect(.degrees(spot.angle + (float ? (i.isMultiple(of: 2) ? 1.5 : -1.5) : 0)))
-                    .offset(x: spot.x, y: spot.y + (float ? -3 : 3) * (i.isMultiple(of: 2) ? 1 : -1))
-                    .zIndex(i == 2 ? 2 : Double(i) * 0.1)
+                    .rotationEffect(.degrees(dealt ? spot.angle + (float ? (i.isMultiple(of: 2) ? 1.5 : -1.5) : 0) : 0))
+                    .offset(x: dealt ? spot.x : 0, y: dealt ? spot.y + (float ? -3 : 3) * (i.isMultiple(of: 2) ? 1 : -1) : 70)
+                    .opacity(dealt ? 1 : 0)
+                    .zIndex(front ? 2 : Double(i) * 0.1)
+                    .animation(.spring(duration: 0.8, bounce: 0.25).delay(reduceMotion ? 0 : 0.1 + Double(i) * 0.07), value: dealt)
             }
             sticker
-                .rotationEffect(.degrees(-10))
+                .rotationEffect(.degrees(stamped ? -10 : -40))
+                .scaleEffect(stamped ? 1 : 1.9)
+                .opacity(stamped ? 1 : 0)
                 .offset(x: 118, y: 78)
                 .zIndex(3)
+                .animation(.spring(duration: 0.5, bounce: 0.35).delay(reduceMotion ? 0 : 0.55), value: stamped)
         }
         .frame(height: 260)
         .frame(maxWidth: .infinity)
+        .contentShape(Rectangle())
+        .onTapGesture { withAnimation(.spring(duration: 0.6, bounce: 0.3)) { turn += 1 } }
         .animation(Theme.Motion.pop, value: ids)
+        .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.7), trigger: stamped) { _, new in new }
+        .sensoryFeedback(.selection, trigger: turn)
         .onAppear {
+            dealt = true
+            stamped = true
             guard !reduceMotion && !Theme.stillMotion else { return }
-            withAnimation(.easeInOut(duration: 3.6).repeatForever(autoreverses: true)) { float = true }
+            withAnimation(.easeInOut(duration: 3.6).repeatForever(autoreverses: true).delay(1)) { float = true }
         }
     }
 
@@ -376,11 +398,12 @@ struct DayChart: View {
     let days: [RunViewModel.DayCount]
     let isSelected: (RunViewModel.DayCount) -> Bool
     let pick: (RunViewModel.DayCount) -> Void
+    @State private var grown = false
 
     var body: some View {
         let top = max(1, days.map(\.count).max() ?? 1)
         HStack(alignment: .bottom, spacing: 8) {
-            ForEach(days) { day in
+            ForEach(Array(days.enumerated()), id: \.element.id) { index, day in
                 let on = isSelected(day)
                 Button { pick(day) } label: {
                     VStack(spacing: 6) {
@@ -389,7 +412,8 @@ struct DayChart: View {
                             .foregroundStyle(on ? Theme.ink : Theme.inkFaint)
                         Capsule()
                             .fill(on ? AnyShapeStyle(Theme.ink) : AnyShapeStyle(Theme.ink.opacity(0.12)))
-                            .frame(height: max(6, 64 * CGFloat(day.count) / CGFloat(top)))
+                            .frame(height: grown ? max(6, 64 * CGFloat(day.count) / CGFloat(top)) : 6)
+                            .animation(.spring(duration: 0.7, bounce: 0.3).delay(0.3 + Double(index) * 0.05), value: grown)
                         Text(label(day.start))
                             .font(.system(size: 11, weight: on ? .bold : .medium))
                             .foregroundStyle(on ? Theme.ink : Theme.inkSoft)
@@ -403,6 +427,7 @@ struct DayChart: View {
         }
         .frame(height: 104, alignment: .bottom)
         .animation(Theme.Motion.pop, value: days)
+        .onAppear { grown = true }
     }
 
     private func label(_ date: Date) -> String {

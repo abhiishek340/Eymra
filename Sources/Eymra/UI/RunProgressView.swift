@@ -49,6 +49,7 @@ struct MagicView: View {
                 .padding(.bottom, 30)
         }
         .padding(.horizontal, 24)
+        .background { WarmMesh().opacity(gatherStart == nil ? 1 : 0.4).animation(.easeOut(duration: 0.8), value: gatherStart) }
         .foregroundStyle(Theme.ink)
         .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.6), trigger: stage)
         .onChange(of: vm.pool) { _, ids in
