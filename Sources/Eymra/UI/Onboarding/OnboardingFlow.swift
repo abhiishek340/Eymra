@@ -10,6 +10,9 @@ struct OnboardingFlow: View {
 
     var body: some View {
         ZStack {
+            if step == .welcome {
+                WarmMesh().transition(.opacity)
+            }
             Group {
                 switch step {
                 case .welcome: WelcomeStep { go(app.account.isSignedIn ? .question(0) : .signIn) }
@@ -26,12 +29,19 @@ struct OnboardingFlow: View {
             .id(step)
             if let previous = previousStep {
                 VStack {
-                    HStack {
-                        Button { go(previous) } label: { Image(systemName: "chevron.backward") }
-                            .buttonStyle(RoundGlassButtonStyle())
-                            .accessibilityLabel("Back")
-                            .accessibilityIdentifier("onboardingBack")
-                        Spacer()
+                    ZStack {
+                        HStack {
+                            Button { go(previous) } label: { Image(systemName: "chevron.backward") }
+                                .buttonStyle(RoundGlassButtonStyle())
+                                .accessibilityLabel("Back")
+                                .accessibilityIdentifier("onboardingBack")
+                            Spacer()
+                        }
+                        // Lives outside the steps, so it grows from one question to the next instead of being redrawn.
+                        if case .question(let index) = step {
+                            QuestionProgress(index: index, count: QuestionStep.count)
+                                .transition(.opacity.combined(with: .scale(scale: 0.8)))
+                        }
                     }
                     Spacer()
                 }
@@ -82,7 +92,7 @@ struct WelcomeStep: View {
                 .revealOnAppear(delay: 1.1, duration: 1.0)
             Spacer()
             Button("Let's begin", action: next)
-                .buttonStyle(.glassPrimary)
+                .buttonStyle(.glassPrimarySheen)
                 .riseIn(delay: 1.4)
                 .accessibilityIdentifier("onboardingStart")
         }
@@ -90,34 +100,51 @@ struct WelcomeStep: View {
     }
 }
 
-/// An illustration of photos floating up out of a pile: little skies, hills and suns, drawn, not bundled.
+/// An illustration of photos dealt out of a pile, then floating: little skies, seas, hills and suns, drawn, not bundled.
 struct FloatingPhotos: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var lift = false
+    @State private var dealt = false
 
-    private struct Card { var x: CGFloat; var y: CGFloat; var angle: Double; var sky: Color; var ground: Color; var sun: Bool }
+    private struct Card {
+        var x: CGFloat; var y: CGFloat; var angle: Double
+        var sky: Color; var ground: Color; var sun: Color?; var sea: Color? = nil
+    }
     private let cards: [Card] = [
-        Card(x: -96, y: 30, angle: -14, sky: Color(red: 0.74, green: 0.85, blue: 0.95), ground: Color(red: 0.62, green: 0.78, blue: 0.60), sun: true),
-        Card(x: 96, y: 40, angle: 12, sky: Color(red: 0.96, green: 0.86, blue: 0.74), ground: Color(red: 0.80, green: 0.72, blue: 0.58), sun: false),
-        Card(x: 0, y: -10, angle: -2, sky: Color(red: 0.66, green: 0.80, blue: 0.94), ground: Color(red: 0.55, green: 0.72, blue: 0.56), sun: true),
+        Card(x: -122, y: 44, angle: -18, sky: Color(red: 0.98, green: 0.80, blue: 0.64), ground: Color(red: 0.86, green: 0.62, blue: 0.48),
+             sun: Color(red: 1, green: 0.93, blue: 0.78), sea: Color(red: 0.93, green: 0.66, blue: 0.52)),
+        Card(x: 122, y: 50, angle: 16, sky: Color(red: 0.96, green: 0.88, blue: 0.76), ground: Color(red: 0.80, green: 0.70, blue: 0.56), sun: nil),
+        Card(x: -64, y: 6, angle: -9, sky: Color(red: 0.74, green: 0.85, blue: 0.95), ground: Color(red: 0.62, green: 0.78, blue: 0.60),
+             sun: Color(red: 1, green: 0.84, blue: 0.45)),
+        Card(x: 66, y: 10, angle: 8, sky: Color(red: 0.80, green: 0.90, blue: 0.94), ground: Color(red: 0.93, green: 0.86, blue: 0.72),
+             sun: nil, sea: Color(red: 0.42, green: 0.66, blue: 0.74)),
+        Card(x: 0, y: -16, angle: -2, sky: Color(red: 0.66, green: 0.80, blue: 0.94), ground: Color(red: 0.55, green: 0.72, blue: 0.56),
+             sun: Color(red: 1, green: 0.84, blue: 0.45)),
     ]
 
     var body: some View {
         ZStack {
-            Circle()
-                .fill(RadialGradient(colors: [.white.opacity(0.8), .white.opacity(0)], center: .center, startRadius: 0, endRadius: 150))
-                .frame(width: 300, height: 300)
+            SoftGlow(radius: 160)
+                .frame(width: 320, height: 320)
+                .scaleEffect(dealt ? 1 : 0.6)
+                .opacity(dealt ? 1 : 0)
             ForEach(cards.indices, id: \.self) { i in
                 let c = cards[i]
+                let sway: Double = lift ? (i.isMultiple(of: 2) ? 2 : -2) : 0
                 miniPhoto(c)
-                    .rotationEffect(.degrees(c.angle + (lift ? (i.isMultiple(of: 2) ? 2 : -2) : 0)))
-                    .offset(x: c.x, y: c.y + (lift ? -8 : 4) * (i == 2 ? 1.4 : 1))
-                    .zIndex(i == 2 ? 1 : 0)
+                    .scaleEffect(i == cards.count - 1 ? 1 : 0.86)
+                    .rotationEffect(.degrees(dealt ? c.angle + sway : 0))
+                    .offset(x: dealt ? c.x : 0, y: dealt ? c.y + (lift ? -8 : 4) * (i == cards.count - 1 ? 1.4 : 1) : 90)
+                    .opacity(dealt ? 1 : 0)
+                    .zIndex(Double(i))
+                    .animation(.spring(duration: 0.9, bounce: 0.28).delay(reduceMotion ? 0 : 0.15 + Double(i) * 0.08), value: dealt)
             }
         }
         .onAppear {
-            guard !reduceMotion && !Theme.stillMotion else { return }
-            withAnimation(.easeInOut(duration: 3.4).repeatForever(autoreverses: true)) { lift = true }
+            if reduceMotion { dealt = true; return }
+            dealt = true
+            guard !Theme.stillMotion else { return }
+            withAnimation(.easeInOut(duration: 3.4).repeatForever(autoreverses: true).delay(1.2)) { lift = true }
         }
         .accessibilityHidden(true)
     }
@@ -125,16 +152,39 @@ struct FloatingPhotos: View {
     private func miniPhoto(_ c: Card) -> some View {
         ZStack(alignment: .bottom) {
             c.sky
-            Ellipse().fill(c.ground).frame(width: 200, height: 110).offset(y: 50)
-            if c.sun {
-                Circle().fill(Color(red: 1, green: 0.84, blue: 0.45)).frame(width: 26, height: 26).offset(x: 34, y: -96)
+            if let sea = c.sea {
+                Rectangle().fill(sea).frame(height: 70)
+            }
+            Ellipse().fill(c.ground).frame(width: 200, height: 110).offset(y: c.sea == nil ? 50 : 76)
+            if let sun = c.sun {
+                Circle().fill(sun).frame(width: 26, height: 26).offset(x: 34, y: -100)
             }
         }
-        .frame(width: 128, height: 164)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .frame(width: 124, height: 160)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .padding(6)
-        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(.white))
-        .shadow(color: .black.opacity(0.12), radius: 16, y: 10)
+        .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(.white))
+        .shadow(color: .black.opacity(0.13), radius: 18, y: 12)
+    }
+}
+
+/// Where you are in the three questions: the current step stretches into a longer bar.
+struct QuestionProgress: View {
+    let index: Int
+    let count: Int
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(0..<count, id: \.self) { i in
+                Capsule()
+                    .fill(i <= index ? AnyShapeStyle(Theme.ink) : AnyShapeStyle(Theme.ink.opacity(0.15)))
+                    .frame(width: i == index ? 30 : 10, height: 6)
+            }
+        }
+        .animation(Theme.Motion.pop, value: index)
+        .frame(height: 44)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Question \(index + 1) of \(count)")
     }
 }
 
@@ -144,6 +194,7 @@ struct SignInStep: View {
     @Environment(AppModel.self) private var app
     let next: () -> Void
     @State private var name = ""
+    @FocusState private var nameFocused: Bool
 
     var body: some View {
         let account = app.account
@@ -190,11 +241,11 @@ struct SignInStep: View {
                         .multilineTextAlignment(.center)
                         .padding(.vertical, 16)
                         .glassCapsule(interactive: false)
+                        .focused($nameFocused)
+                        .submitLabel(.continue)
+                        .onSubmit { finish(account) }
                         .accessibilityIdentifier("nameField")
-                    Button("Continue") {
-                        account.continueWithName(name)
-                        next()
-                    }
+                    Button("Continue") { finish(account) }
                     .buttonStyle(.glassPrimary)
                     .accessibilityIdentifier("continueWithName")
                 }
@@ -204,6 +255,13 @@ struct SignInStep: View {
             }
         }
         .padding(24)
+    }
+
+    /// The keyboard goes away first, so the next screen lays out at full height.
+    private func finish(_ account: Account) {
+        nameFocused = false
+        account.continueWithName(name)
+        next()
     }
 }
 
@@ -272,14 +330,9 @@ struct QuestionStep: View {
     var body: some View {
         let q = question
         VStack(alignment: .leading, spacing: 18) {
-            HStack(spacing: 6) {
-                ForEach(0..<Self.count, id: \.self) { i in
-                    Capsule().fill(Theme.ink.opacity(i <= index ? 0.8 : 0.18)).frame(width: i == index ? 26 : 10, height: 6)
-                }
-            }
-            .padding(.top, 12)
             Spacer()
             Text(q.title).font(Theme.title(32))
+                .fixedSize(horizontal: false, vertical: true)
                 .revealOnAppear()
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
                 ForEach(Array(q.options.enumerated()), id: \.element.id) { optionIndex, option in
@@ -297,6 +350,7 @@ struct QuestionStep: View {
                                 .foregroundStyle(selected ? Theme.onInk : Theme.ink)
                                 .frame(width: 66, height: 66)
                                 .background(Circle().fill(selected ? AnyShapeStyle(Theme.ink) : AnyShapeStyle(Theme.ink.opacity(0.07))))
+                                .popWhenSelected(selected)
                                 .scaleEffect(selected ? 1.06 : 1)
                             Text(option.title)
                                 .font(.system(size: 15, weight: .semibold, design: .serif))
@@ -310,6 +364,17 @@ struct QuestionStep: View {
                         .glassCard(cornerRadius: 26, tint: selected ? .white.opacity(0.5) : nil)
                         .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous)
                             .strokeBorder(Theme.ink.opacity(selected ? 0.9 : 0), lineWidth: 1.5))
+                        .overlay(alignment: .topTrailing) {
+                            if selected {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .frame(width: 22, height: 22)
+                                    .background(Circle().fill(Theme.ember))
+                                    .padding(10)
+                                    .transition(.scale(scale: 0.3).combined(with: .opacity))
+                            }
+                        }
                         .animation(Theme.Motion.pop, value: selected)
                     }
                     .buttonStyle(PressableStyle())
@@ -323,6 +388,7 @@ struct QuestionStep: View {
             Spacer()
         }
         .padding(24)
+        .ignoresSafeArea(.keyboard)
     }
 }
 
@@ -388,8 +454,7 @@ struct FaceOrbit: View {
 
     var body: some View {
         ZStack {
-            Circle()
-                .fill(RadialGradient(colors: [.white.opacity(0.75), .white.opacity(0)], center: .center, startRadius: 0, endRadius: 110))
+            SoftGlow(radius: 110, strength: 0.75)
                 .frame(width: 220, height: 220)
             Circle().stroke(Theme.ink.opacity(0.12), style: StrokeStyle(lineWidth: 1.5, dash: [3, 6])).frame(width: 150, height: 150)
             Image(systemName: "face.smiling").font(.system(size: 64, weight: .ultraLight))
@@ -425,8 +490,8 @@ struct PhotoAccessStep: View {
     var body: some View {
         VStack(spacing: 20) {
             Spacer()
-            Image(systemName: "photo.on.rectangle.angled")
-                .font(.system(size: 64, weight: .ultraLight))
+            CameraRollIllustration()
+                .padding(.bottom, 8)
             Text("Let Eymra see your photos").font(Theme.title(30)).multilineTextAlignment(.center)
                 .revealOnAppear()
             Text("Eymra looks through your photos to find the ones worth sharing. Your photos stay yours.")
@@ -453,5 +518,75 @@ struct PhotoAccessStep: View {
             }
         }
         .padding(24)
+    }
+}
+
+/// A camera roll being looked through: little prints pop in one by one, the rest step back,
+/// and one is ringed in ember as the keeper. Drawn, not bundled.
+struct CameraRollIllustration: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var shown = false
+    @State private var picked = false
+
+    private static let keeper = 4
+    private static let tiles: [(sky: Color, ground: Color)] = [
+        (Color(red: 0.74, green: 0.85, blue: 0.95), Color(red: 0.62, green: 0.78, blue: 0.60)),
+        (Color(red: 0.98, green: 0.80, blue: 0.64), Color(red: 0.86, green: 0.62, blue: 0.48)),
+        (Color(red: 0.80, green: 0.90, blue: 0.94), Color(red: 0.42, green: 0.66, blue: 0.74)),
+        (Color(red: 0.96, green: 0.88, blue: 0.76), Color(red: 0.80, green: 0.70, blue: 0.56)),
+        (Color(red: 0.66, green: 0.80, blue: 0.94), Color(red: 0.55, green: 0.72, blue: 0.56)),
+        (Color(red: 0.93, green: 0.84, blue: 0.80), Color(red: 0.76, green: 0.58, blue: 0.50)),
+        (Color(red: 0.84, green: 0.91, blue: 0.86), Color(red: 0.50, green: 0.66, blue: 0.52)),
+        (Color(red: 0.99, green: 0.90, blue: 0.72), Color(red: 0.88, green: 0.72, blue: 0.50)),
+        (Color(red: 0.78, green: 0.86, blue: 0.92), Color(red: 0.64, green: 0.70, blue: 0.74)),
+    ]
+
+    var body: some View {
+        Grid(horizontalSpacing: 6, verticalSpacing: 6) {
+            ForEach(0..<3, id: \.self) { row in
+                GridRow {
+                    ForEach(0..<3, id: \.self) { column in
+                        tile(row * 3 + column)
+                    }
+                }
+            }
+        }
+        .padding(8)
+        .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(Theme.surface))
+        .shadow(color: .black.opacity(0.08), radius: 18, y: 10)
+        .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.6), trigger: picked) { _, new in new }
+        .onAppear {
+            if reduceMotion { shown = true; picked = true; return }
+            shown = true
+            withAnimation(.spring(duration: 0.5, bounce: 0.4).delay(1.0)) { picked = true }
+        }
+        .accessibilityHidden(true)
+    }
+
+    private func tile(_ i: Int) -> some View {
+        let t = Self.tiles[i]
+        let isKeeper = i == Self.keeper
+        return ZStack(alignment: .bottom) {
+            t.sky
+            Ellipse().fill(t.ground).frame(width: 96, height: 52).offset(y: 24)
+            if i.isMultiple(of: 2) {
+                Circle().fill(Color(red: 1, green: 0.86, blue: 0.5)).frame(width: 12, height: 12).offset(x: 14, y: -40)
+            }
+        }
+        .frame(width: 64, height: 64)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay {
+            if isKeeper && picked {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(Theme.ember, lineWidth: 3)
+                    .padding(-4)
+                    .transition(.scale(scale: 1.4).combined(with: .opacity))
+            }
+        }
+        .scaleEffect(isKeeper && picked ? 1.12 : 1)
+        .opacity(shown ? (picked && !isKeeper ? 0.45 : 1) : 0)
+        .scaleEffect(shown ? 1 : 0.4)
+        .zIndex(isKeeper ? 1 : 0)
+        .animation(.spring(duration: 0.55, bounce: 0.35).delay(0.15 + Double(i) * 0.06), value: shown)
     }
 }
