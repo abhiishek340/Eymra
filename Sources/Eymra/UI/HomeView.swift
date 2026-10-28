@@ -305,8 +305,11 @@ struct PhotoHero: View {
     let count: Int?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var float = false
-    @State private var dealt = false
-    @State private var stamped = false
+    /// The deal and the stamp play once per launch. Every return to Create replaying them felt slow, and the
+    /// stamp's tap of haptics got noisy.
+    @MainActor private static var hasDealt = false
+    @State private var dealt = PhotoHero.hasDealt
+    @State private var stamped = PhotoHero.hasDealt
     /// Which print sits in which spot; a tap shuffles them.
     @State private var turn = 0
 
@@ -347,6 +350,7 @@ struct PhotoHero: View {
         .onAppear {
             dealt = true
             stamped = true
+            Self.hasDealt = true
             guard !reduceMotion && !Theme.stillMotion else { return }
             withAnimation(.easeInOut(duration: 3.6).repeatForever(autoreverses: true).delay(1)) { float = true }
         }
