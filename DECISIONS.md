@@ -143,3 +143,7 @@ Each entry: what the spec said, what was done, why.
 - **Story.** The 40 → 10 numbers roll up, your picks drop onto the day line one by one, the mix bar fills colour by colour, and "Check who is in these photos" is a proper chip.
 - **Rules kept.** Every endless motion stops under Reduce Motion and in UI tests (`-stillMotion`); one-off entrances still run. Pops only play on the item being selected, not the one being let go of.
 - **A lesson.** The first version of the light streak was an offset overlay outside the button. It stretched the button's frame to 745 pt, so a tap at its centre missed, and it duplicated the button's test ID. The streak now lives inside the button style as a moving gradient, so it can never change where the button is.
+- **Second pass, after reviewing the first.**
+  - The Create scrapbook dealt itself in, stamped the sticker and buzzed every time you came back to Create, which felt slow and noisy. It now plays once per launch.
+  - The photo permission screen had a stock icon. It now shows a little camera roll filling in, the rest stepping back, and one photo ringed in ember as the keeper, which is the whole app in one picture.
+  - In dark mode the white glows behind the welcome photos, the face circle and the working orbit read as spotlights. One `SoftGlow` view now uses a faint warm ember there instead.
