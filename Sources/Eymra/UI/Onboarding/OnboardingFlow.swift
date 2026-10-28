@@ -124,8 +124,7 @@ struct FloatingPhotos: View {
 
     var body: some View {
         ZStack {
-            Circle()
-                .fill(RadialGradient(colors: [.white.opacity(0.85), .white.opacity(0)], center: .center, startRadius: 0, endRadius: 160))
+            SoftGlow(radius: 160)
                 .frame(width: 320, height: 320)
                 .scaleEffect(dealt ? 1 : 0.6)
                 .opacity(dealt ? 1 : 0)
@@ -455,8 +454,7 @@ struct FaceOrbit: View {
 
     var body: some View {
         ZStack {
-            Circle()
-                .fill(RadialGradient(colors: [.white.opacity(0.75), .white.opacity(0)], center: .center, startRadius: 0, endRadius: 110))
+            SoftGlow(radius: 110, strength: 0.75)
                 .frame(width: 220, height: 220)
             Circle().stroke(Theme.ink.opacity(0.12), style: StrokeStyle(lineWidth: 1.5, dash: [3, 6])).frame(width: 150, height: 150)
             Image(systemName: "face.smiling").font(.system(size: 64, weight: .ultraLight))
@@ -492,8 +490,8 @@ struct PhotoAccessStep: View {
     var body: some View {
         VStack(spacing: 20) {
             Spacer()
-            Image(systemName: "photo.on.rectangle.angled")
-                .font(.system(size: 64, weight: .ultraLight))
+            CameraRollIllustration()
+                .padding(.bottom, 8)
             Text("Let Eymra see your photos").font(Theme.title(30)).multilineTextAlignment(.center)
                 .revealOnAppear()
             Text("Eymra looks through your photos to find the ones worth sharing. Your photos stay yours.")
@@ -520,5 +518,75 @@ struct PhotoAccessStep: View {
             }
         }
         .padding(24)
+    }
+}
+
+/// A camera roll being looked through: little prints pop in one by one, the rest step back,
+/// and one is ringed in ember as the keeper. Drawn, not bundled.
+struct CameraRollIllustration: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var shown = false
+    @State private var picked = false
+
+    private static let keeper = 4
+    private static let tiles: [(sky: Color, ground: Color)] = [
+        (Color(red: 0.74, green: 0.85, blue: 0.95), Color(red: 0.62, green: 0.78, blue: 0.60)),
+        (Color(red: 0.98, green: 0.80, blue: 0.64), Color(red: 0.86, green: 0.62, blue: 0.48)),
+        (Color(red: 0.80, green: 0.90, blue: 0.94), Color(red: 0.42, green: 0.66, blue: 0.74)),
+        (Color(red: 0.96, green: 0.88, blue: 0.76), Color(red: 0.80, green: 0.70, blue: 0.56)),
+        (Color(red: 0.66, green: 0.80, blue: 0.94), Color(red: 0.55, green: 0.72, blue: 0.56)),
+        (Color(red: 0.93, green: 0.84, blue: 0.80), Color(red: 0.76, green: 0.58, blue: 0.50)),
+        (Color(red: 0.84, green: 0.91, blue: 0.86), Color(red: 0.50, green: 0.66, blue: 0.52)),
+        (Color(red: 0.99, green: 0.90, blue: 0.72), Color(red: 0.88, green: 0.72, blue: 0.50)),
+        (Color(red: 0.78, green: 0.86, blue: 0.92), Color(red: 0.64, green: 0.70, blue: 0.74)),
+    ]
+
+    var body: some View {
+        Grid(horizontalSpacing: 6, verticalSpacing: 6) {
+            ForEach(0..<3, id: \.self) { row in
+                GridRow {
+                    ForEach(0..<3, id: \.self) { column in
+                        tile(row * 3 + column)
+                    }
+                }
+            }
+        }
+        .padding(8)
+        .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(Theme.surface))
+        .shadow(color: .black.opacity(0.08), radius: 18, y: 10)
+        .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.6), trigger: picked) { _, new in new }
+        .onAppear {
+            if reduceMotion { shown = true; picked = true; return }
+            shown = true
+            withAnimation(.spring(duration: 0.5, bounce: 0.4).delay(1.0)) { picked = true }
+        }
+        .accessibilityHidden(true)
+    }
+
+    private func tile(_ i: Int) -> some View {
+        let t = Self.tiles[i]
+        let isKeeper = i == Self.keeper
+        return ZStack(alignment: .bottom) {
+            t.sky
+            Ellipse().fill(t.ground).frame(width: 96, height: 52).offset(y: 24)
+            if i.isMultiple(of: 2) {
+                Circle().fill(Color(red: 1, green: 0.86, blue: 0.5)).frame(width: 12, height: 12).offset(x: 14, y: -40)
+            }
+        }
+        .frame(width: 64, height: 64)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay {
+            if isKeeper && picked {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(Theme.ember, lineWidth: 3)
+                    .padding(-4)
+                    .transition(.scale(scale: 1.4).combined(with: .opacity))
+            }
+        }
+        .scaleEffect(isKeeper && picked ? 1.12 : 1)
+        .opacity(shown ? (picked && !isKeeper ? 0.45 : 1) : 0)
+        .scaleEffect(shown ? 1 : 0.4)
+        .zIndex(isKeeper ? 1 : 0)
+        .animation(.spring(duration: 0.55, bounce: 0.35).delay(0.15 + Double(i) * 0.06), value: shown)
     }
 }

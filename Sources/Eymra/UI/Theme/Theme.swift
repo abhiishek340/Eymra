@@ -91,6 +91,20 @@ struct WarmMesh: View {
     }
 }
 
+/// A soft pool of light behind an illustration: white on paper, a faint warm ember in dark mode
+/// (white there read as a spotlight).
+struct SoftGlow: View {
+    var radius: CGFloat
+    var strength: Double = 0.85
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        let light = scheme == .dark ? Theme.ember.opacity(strength * 0.22) : Color.white.opacity(strength)
+        Circle().fill(RadialGradient(colors: [light, light.opacity(0.3), light.opacity(0)],
+                                     center: .center, startRadius: 0, endRadius: radius))
+    }
+}
+
 // MARK: - Motion
 
 /// Text that writes itself in: each line fades and un-blurs in turn (a TextRenderer, so wrapping stays native).

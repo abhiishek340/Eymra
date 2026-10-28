@@ -145,9 +145,7 @@ struct MagicView: View {
     private func glow(t: Double, gather: Double) -> some View {
         let breathe = reduceMotion || Theme.stillMotion ? 1 : 1 + 0.06 * sin(t * 1.4)
         return ZStack {
-            Circle()
-                .fill(RadialGradient(colors: [.white.opacity(0.85), .white.opacity(0.25), .white.opacity(0)],
-                                     center: .center, startRadius: 0, endRadius: 120))
+            SoftGlow(radius: 120)
                 .frame(width: 240, height: 240)
                 .scaleEffect(breathe * (1 + 0.5 * gather))
             Circle()
