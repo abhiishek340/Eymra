@@ -147,3 +147,9 @@ Each entry: what the spec said, what was done, why.
   - The Create scrapbook dealt itself in, stamped the sticker and buzzed every time you came back to Create, which felt slow and noisy. It now plays once per launch.
   - The photo permission screen had a stock icon. It now shows a little camera roll filling in, the rest stepping back, and one photo ringed in ember as the keeper, which is the whole app in one picture.
   - In dark mode the white glows behind the welcome photos, the face circle and the working orbit read as spotlights. One `SoftGlow` view now uses a faint warm ember there instead.
+
+## Round 11: a ring of photos, and sorting you can watch (2026-11-01)
+- **Welcome, after a web "scroll morph" hero.** Drawn prints fly in scattered, line up, close into a ring around the name, then open into a wide arc with the line rising above it. Swipe up or down to morph between ring and arc, drag sideways along the arc, tap a print to flip it ("a keeper" on the back). It opens on its own after a couple of seconds if nobody swipes. Rebuilt natively in SwiftUI; the app has no web stack, and drawn prints mean no network or photo access is needed before onboarding.
+- **Working, after a video of a desktop photo sorter.** Your photos pack into a slowly turning ball (a sunflower spiral, densest in the middle) while a big counter rolls up. When the run is done they fly out into piles: You, People, Places, Food & drinks, Little things, Almost the same, Set aside. Each pile counts what it caught, Moments and Places roll up, then the keepers lift out into a fanned hand before the story opens.
+- The piles come from `SortBucket` in Core, so every photo lands in exactly one, and a pick never lands with duplicates or rejects (tested).
+- Up to 48 photos are kept on screen while working (was 28) so the ball looks full. The reveal takes about 2.9 seconds; with Reduce Motion or in UI tests it stays at 1.4.
