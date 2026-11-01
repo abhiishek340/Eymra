@@ -98,9 +98,23 @@ struct ResultsView: View {
                     .riseIn(delay: 0.45)
             }
             if r.picks.contains(where: { $0.score.matchedFace != nil }) {
-                Button("Check who is in these photos") { checkingFaces = true }
+                Button { checkingFaces = true } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "person.crop.circle.badge.checkmark").font(.system(size: 15, weight: .semibold))
+                        Text("Check who is in these photos")
+                        Image(systemName: "chevron.forward").font(.system(size: 11, weight: .bold)).foregroundStyle(Theme.inkFaint)
+                    }
                     .font(.system(size: 14, weight: .medium))
-                    .accessibilityIdentifier("reviewMatchedFaces")
+                    .foregroundStyle(Theme.ink)
+                    .padding(.horizontal, 14).padding(.vertical, 10)
+                    .background(Capsule().fill(Theme.surface))
+                    .overlay(Capsule().strokeBorder(Theme.hairline, lineWidth: 1))
+                    .contentShape(Capsule())
+                }
+                .buttonStyle(PressableStyle())
+                .riseIn(delay: 0.48)
+                .accessibilityLabel("Check who is in these photos")
+                .accessibilityIdentifier("reviewMatchedFaces")
             }
             DayRibbon(result: r)
                 .riseIn(delay: 0.5)
@@ -239,18 +253,25 @@ struct PressableStyle: ButtonStyle {
 /// "40 → 10": how many photos went in, how many came out, where, and whether you were found.
 struct StoryGlance: View {
     let result: RunResult
+    /// The numbers roll up from zero once, when the story first shows.
+    @State private var counted = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(alignment: .center, spacing: 14) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text("\(result.stats.photoCount)")
+                Text("\(counted ? result.stats.photoCount : 0)")
                     .font(Theme.display(30)).monospacedDigit()
                     .foregroundStyle(Theme.inkFaint)
+                    .contentTransition(.numericText(value: Double(counted ? result.stats.photoCount : 0)))
                 Image(systemName: "arrow.right")
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(Theme.inkFaint)
-                Text("\(result.picks.count)")
+                    .offset(x: counted ? 0 : -6)
+                    .opacity(counted ? 1 : 0)
+                Text("\(counted ? result.picks.count : 0)")
                     .font(Theme.display(30)).monospacedDigit()
+                    .contentTransition(.numericText(value: Double(counted ? result.picks.count : 0)))
             }
             Spacer()
             glanceStat(symbol: "mappin.and.ellipse", value: "\(result.stats.sceneCount)")
@@ -261,6 +282,10 @@ struct StoryGlance: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .glassCard(cornerRadius: 22)
+        .onAppear {
+            if reduceMotion { counted = true; return }
+            withAnimation(.spring(duration: 1.1, bounce: 0.1).delay(0.5)) { counted = true }
+        }
     }
 
     private func glanceStat(symbol: String, value: String) -> some View {
@@ -278,6 +303,7 @@ struct StoryGlance: View {
 /// The day as a line: one dot per place you went, in time order, with your picks floating above it.
 struct DayRibbon: View {
     let result: RunResult
+    @State private var landed = false
 
     var body: some View {
         let scenes = result.scenes
@@ -306,7 +332,10 @@ struct DayRibbon: View {
                             .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(.white, lineWidth: 1.5))
                             .shadow(color: .black.opacity(0.12), radius: 4, y: 2)
                             .rotationEffect(.degrees(Double(stack) * 7 - 4))
-                            .position(x: x(mid) + CGFloat(stack) * 9, y: 36 - CGFloat(stack) * 3)
+                            .scaleEffect(landed ? 1 : 0.6)
+                            .opacity(landed ? 1 : 0)
+                            .position(x: x(mid) + CGFloat(stack) * 9, y: (landed ? 36 : 6) - CGFloat(stack) * 3)
+                            .animation(.spring(duration: 0.6, bounce: 0.35).delay(0.65 + Double(min(i, 12)) * 0.05), value: landed)
                     }
                 }
                 HStack {
@@ -323,6 +352,7 @@ struct DayRibbon: View {
         .padding(.horizontal, 6)
         .padding(.vertical, 10)
         .glassCard(cornerRadius: 22)
+        .onAppear { landed = true }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(result.scenes.count) places through the day")
     }
@@ -331,6 +361,7 @@ struct DayRibbon: View {
 /// The mix of the set as one bar: a soft colour per kind of shot, with its icon.
 struct MixBar: View {
     let picks: [Pick]
+    @State private var filled = false
 
     var body: some View {
         let groups = Dictionary(grouping: picks, by: \.category)
@@ -340,10 +371,12 @@ struct MixBar: View {
         VStack(spacing: 10) {
             GeometryReader { geo in
                 HStack(spacing: 3) {
-                    ForEach(groups, id: \.category) { g in
+                    ForEach(Array(groups.enumerated()), id: \.element.category) { i, g in
                         Capsule()
                             .fill(g.category.tone)
                             .frame(width: max(8, (geo.size.width - CGFloat(groups.count - 1) * 3) * CGFloat(g.count) / CGFloat(total)))
+                            .scaleEffect(x: filled ? 1 : 0.001, anchor: .leading)
+                            .animation(.spring(duration: 0.7, bounce: 0.15).delay(0.75 + Double(i) * 0.08), value: filled)
                     }
                 }
             }
@@ -364,6 +397,7 @@ struct MixBar: View {
         }
         .padding(14)
         .glassCard(cornerRadius: 22)
+        .onAppear { filled = true }
     }
 }
 

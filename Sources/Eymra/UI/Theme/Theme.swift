@@ -55,6 +55,56 @@ struct DreamBackground: View {
     }
 }
 
+/// The welcome page: warm paper with soft peach and ember light drifting slowly underneath, like late sun on a wall.
+/// Still under Reduce Motion and in UI tests; never blue or purple.
+struct WarmMesh: View {
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1 / 30, paused: reduceMotion || Theme.stillMotion)) { context in
+            let t = reduceMotion || Theme.stillMotion ? 0 : context.date.timeIntervalSinceReferenceDate
+            MeshGradient(width: 3, height: 3, points: points(t), colors: colors)
+        }
+        .ignoresSafeArea()
+        .accessibilityHidden(true)
+    }
+
+    /// Corners stay put and edge points only slide along their edge, so the mesh always covers the screen.
+    private func points(_ t: Double) -> [SIMD2<Float>] {
+        let s = { (speed: Double, phase: Double, amount: Float) in Float(sin(t * speed + phase)) * amount }
+        return [
+            [0, 0], [0.5 + s(0.22, 0, 0.15), 0], [1, 0],
+            [0, 0.5 + s(0.25, 1, 0.12)], [0.5 + s(0.35, 0, 0.08), 0.45 + s(0.28, 2, 0.08)], [1, 0.45 + s(0.2, 1, 0.14)],
+            [0, 1], [0.5 + s(0.28, 2, 0.12), 1], [1, 1],
+        ]
+    }
+
+    private var colors: [Color] {
+        scheme == .dark
+            ? [Color(red: 0.11, green: 0.10, blue: 0.09), Color(red: 0.16, green: 0.12, blue: 0.10), Color(red: 0.24, green: 0.14, blue: 0.10),
+               Color(red: 0.12, green: 0.11, blue: 0.10), Color(red: 0.20, green: 0.13, blue: 0.10), Color(red: 0.14, green: 0.12, blue: 0.10),
+               Color(red: 0.10, green: 0.09, blue: 0.08), Color(red: 0.13, green: 0.11, blue: 0.10), Color(red: 0.11, green: 0.10, blue: 0.09)]
+            : [Color(red: 0.98, green: 0.96, blue: 0.93), Color(red: 0.99, green: 0.92, blue: 0.86), Color(red: 0.99, green: 0.84, blue: 0.74),
+               Color(red: 0.98, green: 0.95, blue: 0.91), Color(red: 1.00, green: 0.89, blue: 0.80), Color(red: 0.99, green: 0.93, blue: 0.87),
+               Color(red: 0.97, green: 0.94, blue: 0.90), Color(red: 0.98, green: 0.92, blue: 0.86), Color(red: 0.97, green: 0.95, blue: 0.92)]
+    }
+}
+
+/// A soft pool of light behind an illustration: white on paper, a faint warm ember in dark mode
+/// (white there read as a spotlight).
+struct SoftGlow: View {
+    var radius: CGFloat
+    var strength: Double = 0.85
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        let light = scheme == .dark ? Theme.ember.opacity(strength * 0.22) : Color.white.opacity(strength)
+        Circle().fill(RadialGradient(colors: [light, light.opacity(0.3), light.opacity(0)],
+                                     center: .center, startRadius: 0, endRadius: radius))
+    }
+}
+
 // MARK: - Motion
 
 /// Text that writes itself in: each line fades and un-blurs in turn (a TextRenderer, so wrapping stays native).
@@ -97,6 +147,57 @@ extension View {
     /// A soft light that sweeps across the content (for "working" text).
     func shimmer(active: Bool = true) -> some View {
         modifier(ShimmerModifier(active: active))
+    }
+
+    /// A quick springy pop when this becomes the selected one (the one being let go of stays still).
+    func popWhenSelected(_ selected: Bool) -> some View {
+        keyframeAnimator(initialValue: 1.0, trigger: selected) { content, scale in
+            content.scaleEffect(selected ? scale : 1)
+        } keyframes: { _ in
+            KeyframeTrack {
+                SpringKeyframe(1.22, duration: 0.14)
+                SpringKeyframe(1.0, duration: 0.4, spring: .bouncy)
+            }
+        }
+    }
+}
+
+/// Every few seconds a narrow streak of light glides across a capsule, like light catching a lacquered button.
+/// Applied inside a button style, so it belongs to the button (outside, it showed up as a second element).
+private struct SheenModifier: ViewModifier {
+    @State private var phase: CGFloat = -0.4
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        content
+            .modifier(SheenStreak(phase: phase))
+            .onAppear {
+                guard !reduceMotion && !Theme.stillMotion else { return }
+                withAnimation(.easeInOut(duration: 1.3).delay(2.6).repeatForever(autoreverses: false)) { phase = 1.4 }
+            }
+    }
+}
+
+/// The streak is a gradient inside the capsule whose bright band moves, so nothing is ever drawn outside the button
+/// (an offset overlay stretched the button's frame and moved where taps land).
+private struct SheenStreak: ViewModifier, Animatable {
+    var phase: CGFloat
+
+    var animatableData: CGFloat {
+        get { phase }
+        set { phase = newValue }
+    }
+
+    func body(content: Content) -> some View {
+        content.overlay {
+            Capsule()
+                .fill(LinearGradient(stops: [.init(color: .clear, location: 0),
+                                             .init(color: .white.opacity(0.26), location: 0.5),
+                                             .init(color: .clear, location: 1)],
+                                     startPoint: UnitPoint(x: phase - 0.18, y: 0.2), endPoint: UnitPoint(x: phase + 0.18, y: 0.8)))
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
     }
 }
 
@@ -197,6 +298,8 @@ extension View {
 
 /// The main call to action: a bright glass pill.
 struct GlassPrimaryButtonStyle: ButtonStyle {
+    /// A streak of light now and then, for the one button a screen is about.
+    var sheen = false
     @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {
@@ -212,6 +315,7 @@ struct GlassPrimaryButtonStyle: ButtonStyle {
                     .shadow(color: .black.opacity(configuration.isPressed ? 0.10 : 0.22),
                             radius: configuration.isPressed ? 6 : 16, y: configuration.isPressed ? 3 : 8)
             }
+            .modifier(OptionalSheen(on: sheen && isEnabled))
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
             .opacity(isEnabled ? 1 : 0.35)
             .animation(Theme.Motion.snap, value: configuration.isPressed)
@@ -240,6 +344,15 @@ struct GlassButtonStyle: ButtonStyle {
 
 extension ButtonStyle where Self == GlassPrimaryButtonStyle {
     static var glassPrimary: GlassPrimaryButtonStyle { GlassPrimaryButtonStyle() }
+    static var glassPrimarySheen: GlassPrimaryButtonStyle { GlassPrimaryButtonStyle(sheen: true) }
+}
+
+private struct OptionalSheen: ViewModifier {
+    let on: Bool
+
+    func body(content: Content) -> some View {
+        if on { content.modifier(SheenModifier()) } else { content }
+    }
 }
 
 extension ButtonStyle where Self == GlassButtonStyle {

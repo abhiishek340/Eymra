@@ -113,6 +113,7 @@ struct GlassTabBar: View {
                 } label: {
                     VStack(spacing: 3) {
                         Image(systemName: tab.symbol).font(.system(size: 18, weight: selection == tab ? .semibold : .regular))
+                            .popWhenSelected(selection == tab)
                         Text(tab.title).font(.system(size: 11, weight: .medium))
                     }
                     .foregroundStyle(selection == tab ? Theme.onInk : Theme.ink.opacity(0.55))
