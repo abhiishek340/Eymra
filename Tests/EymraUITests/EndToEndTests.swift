@@ -122,6 +122,8 @@ final class EndToEndTests: XCTestCase {
     func testSetupControls() {
         launch()
         _ = wait("photoCount")
+        // The photo reel fills the top of the screen; scroll the choices clear of the floating button first.
+        bringIntoView(element("range-today"))
         for range in ["today", "yesterday", "last7", "custom", "last3"] {
             wait("range-\(range)").tap()
             if range == "custom" {
