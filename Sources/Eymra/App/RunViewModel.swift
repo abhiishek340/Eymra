@@ -124,11 +124,11 @@ final class RunViewModel {
             let n = await source.count(in: range)
             guard !Task.isCancelled else { return }
             photoCount = n
-            // A spread of up to 5 photos for the hero.
+            // A spread of up to 10 photos for the gallery ring on Create.
             let records = (try? await source.records(in: range)) ?? []
             guard !Task.isCancelled else { return }
-            let step = max(1, records.count / 5)
-            previewIDs = Array(stride(from: 0, to: records.count, by: step).map { records[$0].id }.suffix(5))
+            let step = max(1, records.count / 10)
+            previewIDs = Array(stride(from: 0, to: records.count, by: step).map { records[$0].id }.suffix(10))
         }
         if days.isEmpty { refreshDays() }
     }
