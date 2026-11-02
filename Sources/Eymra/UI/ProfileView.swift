@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// The You tab: who you are, your face, your style, Claude's help, privacy.
+/// The You tab on the evening stage: who you are, your face, your style, deeper picks, photos and privacy,
+/// each as a dark glass panel with its own jewel icon.
 struct ProfileView: View {
     @Environment(AppModel.self) private var app
     @State private var keyDraft = ""
@@ -14,24 +15,36 @@ struct ProfileView: View {
         @Bindable var settings = app.settings
         @Bindable var account = app.account
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 14) {
                 profileHeader
-                faceCard
-                styleCard(prefs: $account.prefs)
-                claudeCard(settings: settings)
-                photosCard(settings: settings)
-                privacyCard
-                Button("Sign out") { confirmSignOut = true }
-                    .buttonStyle(.glassSoft)
-                    .frame(maxWidth: .infinity)
-                    .accessibilityIdentifier("signOut")
+                faceCard.riseIn(delay: 0.08)
+                styleCard(prefs: $account.prefs).riseIn(delay: 0.14)
+                claudeCard(settings: settings).riseIn(delay: 0.2)
+                photosCard(settings: settings).riseIn(delay: 0.26)
+                privacyCard.riseIn(delay: 0.32)
+                Button { confirmSignOut = true } label: {
+                    Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Luxe.coral)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(Capsule().fill(Luxe.coral.opacity(0.1)))
+                        .overlay(Capsule().strokeBorder(Luxe.coral.opacity(0.35), lineWidth: 1))
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(PressableStyle())
+                .accessibilityLabel("Sign out")
+                .accessibilityIdentifier("signOut")
+                .padding(.top, 6)
             }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 120)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 130)
         }
         .scrollIndicators(.hidden)
         .scrollDismissesKeyboard(.interactively)
-        .dreamScreen()
+        .scrollContentBackground(.hidden)
+        .foregroundStyle(Luxe.text)
+        .tint(Luxe.gold)
         .sheet(item: $faceFlow) { flow in
             ZStack {
                 DreamBackground(animated: false)
@@ -58,15 +71,22 @@ struct ProfileView: View {
                     initials
                 }
             }
-            .frame(width: 72, height: 72)
+            .frame(width: 76, height: 76)
             .clipShape(Circle())
-            .overlay(Circle().stroke(.white.opacity(0.7), lineWidth: 2))
-            VStack(alignment: .leading, spacing: 4) {
-                Text(app.account.profile?.name ?? "").font(Theme.title(26))
+            .overlay(Circle().strokeBorder(Luxe.goldGradient, lineWidth: 2).padding(-5))
+            .shadow(color: Luxe.gold.opacity(0.35), radius: 16, y: 4)
+            .padding(5)
+            VStack(alignment: .leading, spacing: 5) {
+                Text("Your profile")
+                    .font(.system(size: 11, weight: .bold))
+                    .textCase(.uppercase)
+                    .tracking(1.8)
+                    .foregroundStyle(Luxe.gold)
+                Text(app.account.profile?.name ?? "").font(.system(size: 28, weight: .semibold, design: .serif))
                 if let email = app.account.profile?.email {
-                    Text(email).font(.system(size: 14)).foregroundStyle(Theme.inkSoft)
+                    Text(email).font(.system(size: 14)).foregroundStyle(Luxe.soft)
                 } else {
-                    Text("On this phone only").font(.system(size: 14)).foregroundStyle(Theme.inkSoft)
+                    Text("On this phone only").font(.system(size: 14)).foregroundStyle(Luxe.soft)
                 }
             }
             Spacer()
@@ -82,7 +102,7 @@ struct ProfileView: View {
                     Text(app.account.isSigningIn ? "Signing in…" : "Sign in with Google")
                 }
             }
-            .buttonStyle(.glassPrimary)
+            .buttonStyle(LuxeButtonStyle())
             .disabled(app.account.isSigningIn)
             .accessibilityIdentifier("profileGoogleSignIn")
             if let error = app.account.signInError {
@@ -94,27 +114,30 @@ struct ProfileView: View {
 
     private var initials: some View {
         ZStack {
-            Circle().fill(.white.opacity(0.4))
-            Text(String(app.account.greetingName.prefix(1))).font(Theme.title(28))
+            Circle().fill(Luxe.goldGradient)
+            Text(String(app.account.greetingName.prefix(1)).uppercased())
+                .font(.system(size: 30, weight: .semibold, design: .serif))
+                .foregroundStyle(Luxe.stage)
         }
     }
 
     // MARK: Face
 
     private var faceCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            DreamHeading(text: String(localized: "Your face"))
+        LuxePanel(label: "Your face", symbol: "faceid", color: Luxe.emerald,
+                  value: app.account.meReference != nil ? String(localized: "Set up") : nil) {
+            VStack(alignment: .leading, spacing: 14) {
             if app.account.hasFace {
                 HStack(spacing: -12) {
                     ForEach(app.account.faceImageURLs, id: \.self) { url in
                         AsyncImage(url: url) { $0.resizable().scaledToFill() } placeholder: { Color.white.opacity(0.3) }
                             .frame(width: 52, height: 52)
                             .clipShape(Circle())
-                            .overlay(Circle().stroke(.white, lineWidth: 2))
+                            .overlay(Circle().stroke(Luxe.stage, lineWidth: 2))
                     }
                 }
             }
-            Text(faceStatus).font(.system(size: 14)).foregroundStyle(Theme.inkSoft)
+            Text(faceStatus).font(.system(size: 14)).foregroundStyle(Luxe.soft)
             HStack(spacing: 10) {
                 if FaceScanner.hasCamera {
                     Button(app.account.hasFace ? "Scan again" : "Scan my face") { faceFlow = .camera }.buttonStyle(.glassSoft)
@@ -124,12 +147,10 @@ struct ProfileView: View {
             }
             if app.account.hasFace {
                 Button("Remove my face") { app.account.removeFace() }
-                    .font(.system(size: 14)).foregroundStyle(Theme.inkSoft)
+                    .font(.system(size: 14)).foregroundStyle(Luxe.soft)
+            }
             }
         }
-        .padding(20)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .glassCard()
     }
 
     private var faceStatus: String {
@@ -142,8 +163,8 @@ struct ProfileView: View {
     // MARK: Style
 
     private func styleCard(prefs: Binding<UserPrefs>) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            DreamHeading(text: String(localized: "Your style"))
+        LuxePanel(label: "Your style", symbol: "paintbrush.pointed.fill", color: Luxe.honey) {
+            VStack(alignment: .leading, spacing: 14) {
             styleRow(String(localized: "I mostly post")) {
                 Picker("I mostly post", selection: prefs.style) {
                     Text("Mostly me").tag(PostingStyle.mostlyMe)
@@ -165,17 +186,16 @@ struct ProfileView: View {
                     Text("Best first").tag(StoryStyle.bestFirst)
                 }
             }
+            }
+            .pickerStyle(.menu)
+            .tint(Luxe.champagne)
+            .font(.system(size: 15))
         }
-        .pickerStyle(.menu)
-        .tint(Theme.ink)
-        .font(.system(size: 15))
-        .padding(20)
-        .glassCard()
     }
 
     private func styleRow<P: View>(_ title: String, @ViewBuilder picker: () -> P) -> some View {
         HStack {
-            Text(title).foregroundStyle(Theme.inkSoft)
+            Text(title).foregroundStyle(Luxe.soft)
             Spacer()
             picker().labelsHidden()
         }
@@ -185,18 +205,19 @@ struct ProfileView: View {
 
     private func claudeCard(settings: Settings) -> some View {
         @Bindable var settings = settings
-        return VStack(alignment: .leading, spacing: 14) {
+        return LuxePanel(label: "Deeper picks", symbol: "eye.fill", color: Luxe.coral,
+                         value: settings.judgeEnabled ? String(localized: "On") : nil) {
+            VStack(alignment: .leading, spacing: 14) {
+            // The panel already says "Deeper picks"; the switch only explains it (and keeps the name for VoiceOver).
             Toggle(isOn: $settings.judgeEnabled) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Deeper picks").font(.system(size: 20, weight: .semibold, design: .serif))
-                    Text("An even more careful look at your best photos.").font(.system(size: 13)).foregroundStyle(Theme.inkSoft)
-                }
+                Text("An even more careful look at your best photos.").font(.system(size: 14)).foregroundStyle(Luxe.soft)
             }
-            .tint(Theme.ink.opacity(0.7))
+            .tint(Luxe.gold)
+            .accessibilityLabel("Deeper picks")
             .accessibilityIdentifier("judgeToggle")
             if settings.judgeEnabled {
                 Text("This uses your own Anthropic account. Small copies of your best photos are sent for a closer look, with location and all other details removed. Your face is never sent.")
-                    .font(.system(size: 13)).foregroundStyle(Theme.inkSoft)
+                    .font(.system(size: 13)).foregroundStyle(Luxe.soft)
                 VStack(alignment: .leading, spacing: 8) {
                     Text(settings.hasAPIKey ? "Your key is saved" : "Paste your Anthropic API key")
                         .font(.system(size: 15, weight: .medium))
@@ -217,25 +238,24 @@ struct ProfileView: View {
                         if settings.hasAPIKey {
                             Button("Remove key") { settings.setAPIKey(""); note = nil }
                                 .accessibilityIdentifier("removeKey")
-                                .font(.system(size: 14)).foregroundStyle(Theme.inkSoft)
+                                .font(.system(size: 14)).foregroundStyle(Luxe.soft)
                         }
                     }
                     Text("Get a key at console.anthropic.com → API keys. You pay Anthropic directly for what you use.")
-                        .font(.system(size: 12)).foregroundStyle(Theme.inkFaint)
+                        .font(.system(size: 12)).foregroundStyle(Luxe.faint)
                 }
                 Picker("Speed and quality", selection: $settings.judgeModel) {
                     ForEach(ClaudeJudge.models) { m in Text("\(m.name) · \(m.estimate)").tag(m.id) }
                 }
                 .pickerStyle(.menu)
-                .tint(Theme.ink)
+                .tint(Luxe.champagne)
             }
             if settings.judgeEnabled, let issue = settings.deeperIssue {
-                Label(issue, systemImage: "exclamationmark.circle").font(.footnote).foregroundStyle(Theme.inkSoft)
+                Label(issue, systemImage: "exclamationmark.circle").font(.footnote).foregroundStyle(Luxe.soft)
             }
-            if let note { Text(note).font(.footnote).foregroundStyle(Theme.inkSoft) }
+            if let note { Text(note).font(.footnote).foregroundStyle(Luxe.champagne) }
+            }
         }
-        .padding(20)
-        .glassCard()
     }
 
     private func saveKey(_ settings: Settings) {
@@ -251,8 +271,8 @@ struct ProfileView: View {
 
     private func photosCard(settings: Settings) -> some View {
         @Bindable var settings = settings
-        return VStack(alignment: .leading, spacing: 12) {
-            DreamHeading(text: String(localized: "Photos"))
+        return LuxePanel(label: "Photos", symbol: "photo.stack.fill", color: Luxe.sea) {
+            VStack(alignment: .leading, spacing: 12) {
             Toggle("Download photos from iCloud when needed", isOn: $settings.allowICloudDownloads)
             if settings.allowICloudDownloads {
                 Toggle("Only on Wi-Fi", isOn: $settings.iCloudWiFiOnly)
@@ -261,28 +281,31 @@ struct ProfileView: View {
                 Task { await app.store.clearHidden(); note = String(localized: "Hidden photos are back.") }
             }
             .buttonStyle(.glassSoft)
+            }
+            .font(.system(size: 15))
+            .tint(Luxe.gold)
         }
-        .font(.system(size: 15))
-        .tint(Theme.ink.opacity(0.7))
-        .padding(20)
-        .glassCard()
     }
 
     private var privacyCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            DreamHeading(text: String(localized: "Your privacy"))
-            Label("Your photos are looked at on this phone.", systemImage: "iphone")
-            Label("Your face setup never leaves this phone.", systemImage: "faceid")
-            Label("No ads, no tracking, no Eymra servers.", systemImage: "hand.raised")
-            Button("Clear saved photo analysis") {
-                Task { await app.store.clearFeatures(); note = String(localized: "Cleared. The next pick will take a little longer.") }
+        LuxePanel(label: "Your privacy", symbol: "lock.shield.fill", color: Luxe.gold) {
+            VStack(alignment: .leading, spacing: 12) {
+                promise("Your photos are looked at on this phone.", symbol: "iphone", color: Luxe.sea)
+                promise("Your face setup never leaves this phone.", symbol: "faceid", color: Luxe.emerald)
+                promise("No ads, no tracking, no Eymra servers.", symbol: "hand.raised.fill", color: Luxe.coral)
+                Button("Clear saved photo analysis") {
+                    Task { await app.store.clearFeatures(); note = String(localized: "Cleared. The next pick will take a little longer.") }
+                }
+                .font(.system(size: 14)).foregroundStyle(Luxe.soft)
+                .padding(.top, 2)
             }
-            .font(.system(size: 14)).foregroundStyle(Theme.inkSoft)
         }
-        .font(.system(size: 14))
-        .labelStyle(DreamLabelStyle())
-        .padding(20)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .glassCard()
+    }
+
+    private func promise(_ text: LocalizedStringKey, symbol: String, color: Color) -> some View {
+        HStack(spacing: 12) {
+            IconBadge(symbol: symbol, color: color, size: 28, lit: false)
+            Text(text).font(.system(size: 14)).foregroundStyle(Luxe.text)
+        }
     }
 }
