@@ -68,9 +68,16 @@ struct MainView: View {
     }
 
     private var showsTabBar: Bool { tab != .create || vm.screen == .setup }
+    /// Create, Stories and You share one dark stage with your photos drifting behind it; the working screen and
+    /// the story keep the paper look.
+    private var onStage: Bool { showsTabBar }
 
     var body: some View {
         ZStack(alignment: .bottom) {
+            if onStage {
+                LuxeStage(photoIDs: vm.previewIDs)
+                    .transition(.opacity)
+            }
             // Only the visible tab is on screen. Keeping hidden tabs at zero opacity left their scroll views
             // catching touches on a real iPhone (the story's back button stopped working). State lives in the
             // view model and account, so switching back finds everything as it was.
@@ -87,12 +94,20 @@ struct MainView: View {
                 ProfileView().transition(.opacity)
             }
             if showsTabBar {
-                if tab != .create { BottomFade(height: 130) }
+                if tab != .create {
+                    LinearGradient(colors: [Luxe.stage.opacity(0), Luxe.stage.opacity(0.95)], startPoint: .top, endPoint: .bottom)
+                        .frame(height: 150)
+                        .frame(maxHeight: .infinity, alignment: .bottom)
+                        .ignoresSafeArea()
+                        .allowsHitTesting(false)
+                }
                 GlassTabBar(selection: $tab)
                     .padding(.bottom, 4)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
+        // Dark while on the stage, so the clock and battery stay readable over it.
+        .preferredColorScheme(onStage ? .dark : nil)
         .animation(.smooth(duration: 0.45), value: showsTabBar)
         .animation(.smooth(duration: 0.35), value: tab)
         .sensoryFeedback(.selection, trigger: tab)

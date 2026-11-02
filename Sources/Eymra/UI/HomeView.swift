@@ -83,7 +83,6 @@ struct SetupView: View {
         .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { _, y in
             galleryScroll.offset = y
         }
-        .background { LuxeStage() }
         .overlay(alignment: .bottom) {
             ZStack(alignment: .bottom) {
                 LinearGradient(stops: [.init(color: Luxe.stage.opacity(0), location: 0), .init(color: Luxe.stage.opacity(0.94), location: 0.45),
@@ -96,8 +95,6 @@ struct SetupView: View {
             }
         }
         .foregroundStyle(Luxe.text)
-        // The stage is always dark, so the clock and battery stay readable over it.
-        .preferredColorScheme(.dark)
         .task { vm.refreshCount() }
         .onChange(of: app.access) { vm.refreshCount(); vm.refreshDays() }
     }
