@@ -52,7 +52,7 @@ struct StoriesView: View {
                     .revealOnAppear(delay: 0.3, trigger: refresh)
             }
             Spacer()
-            IconBadge(symbol: "books.vertical.fill", color: Luxe.gold, size: 44)
+            IconBadge(symbol: "books.vertical.fill", color: Luxe.gold, size: 34)
                 .accessibilityHidden(true)
         }
         .padding(.horizontal, 8)
@@ -62,7 +62,7 @@ struct StoriesView: View {
 
     private var emptyState: some View {
         VStack(spacing: 12) {
-            IconBadge(symbol: "book.closed.fill", color: Luxe.honey, size: 56)
+            IconBadge(symbol: "book.closed.fill", color: Luxe.honey, size: 44)
             Text("Nothing here yet").font(.system(size: 22, weight: .semibold, design: .serif))
             Text("Your picked photos will show up here.").foregroundStyle(Luxe.soft)
         }

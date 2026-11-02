@@ -145,7 +145,7 @@ private struct Grain: View {
 struct IconBadge: View {
     let symbol: String
     let color: Color
-    var size: CGFloat = 34
+    var size: CGFloat = 28
     var lit = true
 
     var body: some View {
@@ -173,7 +173,7 @@ struct LuxeTile: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 9) {
+            VStack(spacing: 7) {
                 IconBadge(symbol: symbol, color: color, lit: selected)
                     .popWhenSelected(selected)
                 Text(title)
@@ -184,7 +184,7 @@ struct LuxeTile: View {
             }
             .frame(maxWidth: width == nil ? .infinity : nil)
             .frame(width: width)
-            .padding(.vertical, 12)
+            .padding(.vertical, 10)
             .padding(.horizontal, 4)
             .background {
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
@@ -215,7 +215,7 @@ struct LuxePanel<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 10) {
-                IconBadge(symbol: symbol, color: color, size: 26)
+                IconBadge(symbol: symbol, color: color, size: 22)
                 Text(label)
                     .font(.system(size: 11, weight: .bold))
                     .textCase(.uppercase)

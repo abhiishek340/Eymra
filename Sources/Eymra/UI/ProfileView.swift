@@ -304,7 +304,7 @@ struct ProfileView: View {
 
     private func promise(_ text: LocalizedStringKey, symbol: String, color: Color) -> some View {
         HStack(spacing: 12) {
-            IconBadge(symbol: symbol, color: color, size: 28, lit: false)
+            IconBadge(symbol: symbol, color: color, size: 24, lit: false)
             Text(text).font(.system(size: 14)).foregroundStyle(Luxe.text)
         }
     }
