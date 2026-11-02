@@ -77,94 +77,13 @@ struct WelcomeStep: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Spacer()
-            FloatingPhotos()
-                .frame(height: 280)
-                .riseIn(delay: 0.1)
-            Text("Eymra")
-                .font(Theme.display(58))
-                .revealOnAppear(delay: 0.5, duration: 1.4)
-                .padding(.top, 20)
-            Text("Your best moments, picked for you.")
-                .font(.system(size: 17, design: .serif))
-                .foregroundStyle(Theme.inkSoft)
-                .padding(.top, 6)
-                .revealOnAppear(delay: 1.1, duration: 1.0)
-            Spacer()
+            PhotoRingIntro()
             Button("Let's begin", action: next)
                 .buttonStyle(.glassPrimarySheen)
                 .riseIn(delay: 1.4)
                 .accessibilityIdentifier("onboardingStart")
         }
         .padding(24)
-    }
-}
-
-/// An illustration of photos dealt out of a pile, then floating: little skies, seas, hills and suns, drawn, not bundled.
-struct FloatingPhotos: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var lift = false
-    @State private var dealt = false
-
-    private struct Card {
-        var x: CGFloat; var y: CGFloat; var angle: Double
-        var sky: Color; var ground: Color; var sun: Color?; var sea: Color? = nil
-    }
-    private let cards: [Card] = [
-        Card(x: -122, y: 44, angle: -18, sky: Color(red: 0.98, green: 0.80, blue: 0.64), ground: Color(red: 0.86, green: 0.62, blue: 0.48),
-             sun: Color(red: 1, green: 0.93, blue: 0.78), sea: Color(red: 0.93, green: 0.66, blue: 0.52)),
-        Card(x: 122, y: 50, angle: 16, sky: Color(red: 0.96, green: 0.88, blue: 0.76), ground: Color(red: 0.80, green: 0.70, blue: 0.56), sun: nil),
-        Card(x: -64, y: 6, angle: -9, sky: Color(red: 0.74, green: 0.85, blue: 0.95), ground: Color(red: 0.62, green: 0.78, blue: 0.60),
-             sun: Color(red: 1, green: 0.84, blue: 0.45)),
-        Card(x: 66, y: 10, angle: 8, sky: Color(red: 0.80, green: 0.90, blue: 0.94), ground: Color(red: 0.93, green: 0.86, blue: 0.72),
-             sun: nil, sea: Color(red: 0.42, green: 0.66, blue: 0.74)),
-        Card(x: 0, y: -16, angle: -2, sky: Color(red: 0.66, green: 0.80, blue: 0.94), ground: Color(red: 0.55, green: 0.72, blue: 0.56),
-             sun: Color(red: 1, green: 0.84, blue: 0.45)),
-    ]
-
-    var body: some View {
-        ZStack {
-            SoftGlow(radius: 160)
-                .frame(width: 320, height: 320)
-                .scaleEffect(dealt ? 1 : 0.6)
-                .opacity(dealt ? 1 : 0)
-            ForEach(cards.indices, id: \.self) { i in
-                let c = cards[i]
-                let sway: Double = lift ? (i.isMultiple(of: 2) ? 2 : -2) : 0
-                miniPhoto(c)
-                    .scaleEffect(i == cards.count - 1 ? 1 : 0.86)
-                    .rotationEffect(.degrees(dealt ? c.angle + sway : 0))
-                    .offset(x: dealt ? c.x : 0, y: dealt ? c.y + (lift ? -8 : 4) * (i == cards.count - 1 ? 1.4 : 1) : 90)
-                    .opacity(dealt ? 1 : 0)
-                    .zIndex(Double(i))
-                    .animation(.spring(duration: 0.9, bounce: 0.28).delay(reduceMotion ? 0 : 0.15 + Double(i) * 0.08), value: dealt)
-            }
-        }
-        .onAppear {
-            if reduceMotion { dealt = true; return }
-            dealt = true
-            guard !Theme.stillMotion else { return }
-            withAnimation(.easeInOut(duration: 3.4).repeatForever(autoreverses: true).delay(1.2)) { lift = true }
-        }
-        .accessibilityHidden(true)
-    }
-
-    private func miniPhoto(_ c: Card) -> some View {
-        ZStack(alignment: .bottom) {
-            c.sky
-            if let sea = c.sea {
-                Rectangle().fill(sea).frame(height: 70)
-            }
-            Ellipse().fill(c.ground).frame(width: 200, height: 110).offset(y: c.sea == nil ? 50 : 76)
-            if let sun = c.sun {
-                Circle().fill(sun).frame(width: 26, height: 26).offset(x: 34, y: -100)
-            }
-        }
-        .frame(width: 124, height: 160)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .padding(6)
-        .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(.white))
-        .shadow(color: .black.opacity(0.13), radius: 18, y: 12)
     }
 }
 

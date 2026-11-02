@@ -68,6 +68,8 @@ final class RunViewModel {
     var showResults = false
     /// Photos to show while working: a spread of the range, then each photo as it's looked at.
     private(set) var pool: [String] = []
+    /// The finished run, shown being sorted into piles for a moment before the story opens.
+    private(set) var sorting: RunResult?
     /// The final picks, once known, so the working view can gather them before the story appears.
     private(set) var finalPicks: [String] = []
 
@@ -173,6 +175,7 @@ final class RunViewModel {
         let pipeline = app.makePipeline()
         pool = []
         finalPicks = []
+        sorting = nil
         phase = .running(PipelineProgress(stage: .ingest, completed: 0, total: 0))
         let (stream, continuation) = AsyncStream<PipelineProgress>.makeStream(bufferingPolicy: .bufferingNewest(1))
         task = Task {
@@ -187,10 +190,11 @@ final class RunViewModel {
                 let result = try await pipeline.run(config, options: options, progress: continuation)
                 continuation.finish()
                 guard !Task.isCancelled else { return }
-                // Let the picks gather on screen for a moment before the story blooms in.
+                // Let the photos sort into piles and the picks gather before the story blooms in.
                 self.finalPicks = result.picks.map(\.photoID)
+                self.sorting = result
                 self.app.settings.deeperIssue = result.config.judgeEnabled ? result.stats.judgeNote : nil
-                try? await Task.sleep(for: .milliseconds(1400))
+                try? await Task.sleep(for: .milliseconds(Self.revealMilliseconds))
                 guard !Task.isCancelled else { return }
                 self.result = result
                 self.showResults = true
@@ -216,9 +220,18 @@ final class RunViewModel {
         if p.stage == .ingest, !p.samples.isEmpty { pool = p.samples }
         if let id = p.photoID, !pool.contains(id) {
             pool.append(id)
-            if pool.count > 28 { pool.removeFirst(pool.count - 28) }
+            if pool.count > Self.poolSize { pool.removeFirst(pool.count - Self.poolSize) }
         }
         if p.stage == .selection, !p.samples.isEmpty { finalPicks = p.samples }
+    }
+
+    /// Photos kept on screen while working: enough for a dense ball, few enough to stay smooth.
+    static let poolSize = 48
+
+    /// The sorting and gathering take a little under three seconds. With Reduce Motion, or in UI tests,
+    /// nothing moves, so the story comes sooner.
+    private static var revealMilliseconds: Int {
+        ProcessInfo.processInfo.arguments.contains("-stillMotion") || UIAccessibility.isReduceMotionEnabled ? 1400 : 2900
     }
 
     func cancel() {

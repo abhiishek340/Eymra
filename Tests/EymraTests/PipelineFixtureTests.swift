@@ -292,6 +292,18 @@ struct PipelineFixtureTests {
         #expect(r.stats.shortfall > 0)
     }
 
+    @Test func everyPhotoLandsInExactlyOnePile() async throws {
+        let e = try env()
+        let r = try await e.pipeline.run(e.config, options: .init(me: e.fixtures.meReference))
+        let piles = SortBucket.counts(in: r)
+        #expect(piles.map(\.count).reduce(0, +) == Set(r.scores.keys).union(r.excluded.keys).count)
+        #expect(piles.allSatisfy { $0.count > 0 })
+        #expect(piles.contains { $0.bucket == .you })
+        #expect(piles.contains { $0.bucket == .same })
+        // A pick is never shown landing with the duplicates or the rejects.
+        #expect(r.picks.allSatisfy { ![SortBucket.same, .aside].contains(SortBucket.of($0.photoID, in: r)) })
+    }
+
     @Test func judgeTitleIsUsed() async throws {
         let e = try env(judge: StubJudge(), judgeEnabled: true)
         let r = try await e.pipeline.run(e.config)
