@@ -164,7 +164,7 @@ extension View {
 
 /// Every few seconds a narrow streak of light glides across a capsule, like light catching a lacquered button.
 /// Applied inside a button style, so it belongs to the button (outside, it showed up as a second element).
-private struct SheenModifier: ViewModifier {
+struct SheenModifier: ViewModifier {
     @State private var phase: CGFloat = -0.4
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 

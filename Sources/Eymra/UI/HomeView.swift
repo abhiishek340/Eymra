@@ -29,56 +29,129 @@ struct CreateView: View {
     }
 }
 
-/// The setup screen: shown, not explained. Your own photos up top, a chart of your days,
-/// the real shape of each post, dots for how many, and a slider from you to places.
+/// The setup screen as an evening stage: your photos turning on a ring under warm light, a headline in serif,
+/// and every choice as a jewel-coloured tile, ending on a gold button.
 struct SetupView: View {
     @Environment(AppModel.self) private var app
     @Bindable var vm: RunViewModel
-    @Namespace private var focusPill
+    @State private var galleryScroll = GalleryScroll()
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 26) {
-                header
-                if let last = vm.result { lastStoryCard(last).riseIn(delay: 0.05) }
-                if !app.access.isUsable { accessCard }
-                PhotoHero(ids: vm.previewIDs, count: vm.photoCount)
-                    .frame(maxWidth: .infinity)
-                    .riseIn(delay: 0.1)
-                section("When") { whenSection }.riseIn(delay: 0.16)
-                section("Where") { whereSection }.riseIn(delay: 0.22)
-                section("How many") { countSection }.riseIn(delay: 0.28)
-                section("Focus") { focusSection }.riseIn(delay: 0.34)
-                if app.access == .limited { limitedCard }
+            VStack(alignment: .leading, spacing: 0) {
+                masthead
+                    .padding(.horizontal, 24)
+                    .padding(.top, 8)
+                CircularPhotoGallery(ids: vm.previewIDs, scroll: galleryScroll)
+                    .frame(height: 310)
+                    .padding(.top, 6)
+                    .riseIn(delay: 0.05)
+                headline
+                    .padding(.horizontal, 24)
+                    .padding(.top, 4)
+                    .riseIn(delay: 0.12)
+                if let last = vm.result {
+                    lastStoryCard(last)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 20)
+                        .riseIn(delay: 0.16)
+                }
+                if !app.access.isUsable {
+                    accessCard.padding(.horizontal, 16).padding(.top, 18)
+                }
+                VStack(spacing: 14) {
+                    LuxePanel(label: "When", symbol: "calendar", color: Luxe.amber, value: vm.preset.title) { whenSection }
+                        .riseIn(delay: 0.2)
+                    LuxePanel(label: "Post to", symbol: "paperplane.fill", color: Luxe.coral, value: vm.platformPreset.name) { whereSection }
+                        .riseIn(delay: 0.26)
+                    LuxePanel(label: "How many", symbol: "number", color: Luxe.gold,
+                              value: String(localized: "\(vm.count) of \(vm.platformPreset.maxCount)")) { countSection }
+                        .riseIn(delay: 0.32)
+                    LuxePanel(label: "Focus", symbol: "scope", color: Luxe.emerald, value: focusName) { focusSection }
+                        .riseIn(delay: 0.38)
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 24)
+                if app.access == .limited {
+                    limitedCard.padding(.horizontal, 16).padding(.top, 14)
+                }
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 8)
-            .padding(.bottom, 180)
+            .padding(.bottom, 190)
         }
         .scrollIndicators(.hidden)
+        .scrollContentBackground(.hidden)
+        .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { _, y in
+            galleryScroll.offset = y
+        }
+        .background { LuxeStage() }
         .overlay(alignment: .bottom) {
             ZStack(alignment: .bottom) {
-                BottomFade(height: 220)
+                LinearGradient(stops: [.init(color: Luxe.stage.opacity(0), location: 0), .init(color: Luxe.stage.opacity(0.94), location: 0.45),
+                                       .init(color: Luxe.stage, location: 1)], startPoint: .top, endPoint: .bottom)
+                    .frame(height: 230)
+                    .frame(maxHeight: .infinity, alignment: .bottom)
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
                 runButton
             }
         }
-        .dreamScreen()
+        .foregroundStyle(Luxe.text)
+        // The stage is always dark, so the clock and battery stay readable over it.
+        .preferredColorScheme(.dark)
         .task { vm.refreshCount() }
         .onChange(of: app.access) { vm.refreshCount(); vm.refreshDays() }
     }
 
-    // MARK: Header
+    // MARK: Masthead and headline
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(greeting)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(Theme.inkSoft)
-            (Text("Find your ") + Text("keepers").italic().foregroundColor(Theme.ember) + Text("."))
-                .font(.system(size: 40, weight: .semibold, design: .serif))
-                .revealOnAppear(duration: 1.2, trigger: greeting)
+    private var masthead: some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text(Date.now, format: .dateTime.weekday(.wide).day().month(.wide))
+                    .font(.system(size: 11, weight: .bold))
+                    .textCase(.uppercase)
+                    .tracking(1.8)
+                    .foregroundStyle(Luxe.gold)
+                Text(greeting)
+                    .font(.system(size: 24, weight: .semibold, design: .serif))
+                    .foregroundStyle(Luxe.text)
+                    .revealOnAppear(duration: 1.1, trigger: greeting)
+            }
+            Spacer()
+            Text(String(app.account.greetingName.prefix(1)).uppercased())
+                .font(.system(size: 18, weight: .semibold, design: .serif))
+                .foregroundStyle(Luxe.stage)
+                .frame(width: 44, height: 44)
+                .background(Circle().fill(Luxe.goldGradient))
+                .overlay(Circle().strokeBorder(Luxe.gold.opacity(0.5), lineWidth: 1).padding(-4))
+                .shadow(color: Luxe.gold.opacity(0.4), radius: 12, y: 4)
+                .accessibilityHidden(true)
         }
-        .padding(.top, 14)
+    }
+
+    private var headline: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Text(vm.photoCount.map { "\($0)" } ?? "–")
+                    .monospacedDigit()
+                    .contentTransition(.numericText(value: Double(vm.photoCount ?? 0)))
+                    .animation(Theme.Motion.pop, value: vm.photoCount)
+                Text(vm.photoCount == 1 ? "photo" : "photos")
+                Circle().fill(Luxe.gold).frame(width: 4, height: 4)
+                Text(spanLabel)
+            }
+            .font(.system(size: 12, weight: .bold))
+            .textCase(.uppercase)
+            .tracking(1.6)
+            .foregroundStyle(Luxe.champagne)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(vm.photoCount.map { $0 == 0 ? String(localized: "No photos from this time") : String(localized: "\($0) photos from this time") }
+                                ?? String(localized: "Counting your photos…"))
+            .accessibilityIdentifier("photoCount")
+            (Text("Find your ") + Text("keepers").italic().foregroundStyle(Luxe.goldGradient) + Text("."))
+                .font(.system(size: 42, weight: .semibold, design: .serif))
+                .foregroundStyle(Luxe.text)
+        }
     }
 
     private var greeting: String {
@@ -91,32 +164,48 @@ struct SetupView: View {
         }
     }
 
-    private func section<Content: View>(_ label: LocalizedStringKey, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(label)
-                .font(.system(size: 11, weight: .bold))
-                .textCase(.uppercase)
-                .tracking(1.2)
-                .foregroundStyle(Theme.inkFaint)
-            content()
+    /// "Fri – Sun", "Today", or "12 Oct – 1 Nov" for longer spans.
+    private var spanLabel: String {
+        let r = vm.range, cal = Calendar.current
+        let last = r.end.addingTimeInterval(-1)
+        if cal.isDate(r.start, inSameDayAs: last) {
+            return cal.isDateInToday(r.start) ? String(localized: "Today") : r.start.formatted(.dateTime.weekday(.wide))
+        }
+        let long = r.duration > 6.5 * 86_400
+        let style: Date.FormatStyle = long ? .dateTime.day().month(.abbreviated) : .dateTime.weekday(.abbreviated)
+        return "\(r.start.formatted(style)) – \(last.formatted(style))"
+    }
+
+    private var focusName: String {
+        switch vm.mix {
+        case .moreOfMe: String(localized: "Only me")
+        case .balanced: String(localized: "A mix")
+        case .moreScenery: String(localized: "More places")
         }
     }
 
-    // MARK: When: a chart of your last 7 days
+    // MARK: When
+
+    private static let rangeStyle: [RangePreset: (symbol: String, color: Color)] = [
+        .today: ("sun.max.fill", Luxe.amber),
+        .yesterday: ("moon.fill", Luxe.honey),
+        .last3: ("3.square.fill", Luxe.coral),
+        .last7: ("7.square.fill", Luxe.emerald),
+        .custom: ("slider.horizontal.3", Luxe.rose),
+    ]
 
     private var whenSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            DayChart(days: vm.days, isSelected: vm.isSelected) { day in
+        VStack(alignment: .leading, spacing: 16) {
+            DayChart(days: vm.days, isSelected: vm.isSelected, tint: Luxe.gold) { day in
                 withAnimation(Theme.Motion.snap) { vm.selectDay(day) }
             }
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) {
-                    ForEach(RangePreset.allCases) { preset in
-                        GlassChip(title: preset.short, selected: vm.preset == preset) {
-                            withAnimation(Theme.Motion.snap) { vm.preset = preset }
-                        }
-                        .accessibilityIdentifier("range-\(preset.rawValue)")
+            HStack(spacing: 7) {
+                ForEach(RangePreset.allCases) { preset in
+                    let style = Self.rangeStyle[preset] ?? ("calendar", Luxe.gold)
+                    LuxeTile(title: preset.short, symbol: style.symbol, color: style.color, selected: vm.preset == preset) {
+                        withAnimation(Theme.Motion.snap) { vm.preset = preset }
                     }
+                    .accessibilityIdentifier("range-\(preset.rawValue)")
                 }
             }
             if vm.preset == .custom {
@@ -125,103 +214,85 @@ struct SetupView: View {
                     DatePicker("To", selection: $vm.customEnd, in: ...Date())
                 }
                 .font(.system(size: 15))
-                .tint(Theme.ink)
-                .padding(14)
-                .glassCard(cornerRadius: 20)
+                .tint(Luxe.gold)
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .padding(16)
-        .glassCard()
     }
 
-    // MARK: Where: the real shape of each post
+    // MARK: Where
 
-    private var whereSection: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
-                ForEach(PlatformPreset.all) { p in
-                    PlatformTile(preset: p, selected: vm.platform == p.id) {
-                        withAnimation(Theme.Motion.pop) { vm.platform = p.id }
-                    }
-                    .accessibilityIdentifier("platform-\(p.id.rawValue)")
-                }
-            }
-            .padding(.vertical, 2)
+    private static func platformColor(_ id: PlatformPreset.ID) -> Color {
+        switch id {
+        case .instagramCarousel: Luxe.coral
+        case .instagramSingle: Luxe.rose
+        case .reels: Luxe.amber
+        case .facebook: Luxe.sea
+        case .x: Luxe.sand
         }
     }
 
-    // MARK: How many: one dot per photo
+    private var whereSection: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(PlatformPreset.all) { p in
+                    LuxeTile(title: p.shortName, symbol: p.symbol, color: Self.platformColor(p.id), selected: vm.platform == p.id, width: 74) {
+                        withAnimation(Theme.Motion.pop) { vm.platform = p.id }
+                    }
+                    .accessibilityLabel(p.name)
+                    .accessibilityIdentifier("platform-\(p.id.rawValue)")
+                }
+            }
+            .padding(.horizontal, 18)
+            .padding(.vertical, 6)
+        }
+        .padding(.horizontal, -18)
+    }
+
+    // MARK: How many
 
     private var countSection: some View {
         VStack(spacing: 14) {
             HStack(alignment: .center) {
                 Button { if vm.count > 1 { vm.count -= 1 } } label: { Image(systemName: "minus") }
-                    .buttonStyle(RoundGlassButtonStyle())
+                    .buttonStyle(LuxeRoundButtonStyle())
                     .disabled(vm.count <= 1)
                     .accessibilityLabel("Fewer")
                 Spacer()
-                VStack(spacing: 0) {
-                    Text("\(vm.count)")
-                        .font(Theme.display(48))
-                        .monospacedDigit()
-                        .contentTransition(.numericText())
-                        .accessibilityIdentifier("countValue")
-                    Text("of \(vm.platformPreset.maxCount)")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(Theme.inkFaint)
-                }
+                Text("\(vm.count)")
+                    .font(Theme.display(64))
+                    .monospacedDigit()
+                    .foregroundStyle(Luxe.goldGradient)
+                    .contentTransition(.numericText(value: Double(vm.count)))
+                    .shadow(color: Luxe.gold.opacity(0.35), radius: 16)
+                    .accessibilityIdentifier("countValue")
                 Spacer()
                 Button { if vm.count < vm.platformPreset.maxCount { vm.count += 1 } } label: { Image(systemName: "plus") }
-                    .buttonStyle(RoundGlassButtonStyle())
+                    .buttonStyle(LuxeRoundButtonStyle())
                     .disabled(vm.count >= vm.platformPreset.maxCount)
                     .accessibilityLabel("More")
             }
-            CountDots(count: $vm.count, maximum: vm.platformPreset.maxCount)
+            CountDots(count: $vm.count, maximum: vm.platformPreset.maxCount, tint: Luxe.gold)
         }
         .animation(Theme.Motion.pop, value: vm.count)
-        .padding(16)
-        .glassCard()
         .sensoryFeedback(.selection, trigger: vm.count)
     }
 
-    // MARK: Focus: from you to places
+    // MARK: Focus
 
     private var focusSection: some View {
         HStack(spacing: 8) {
-            focusOption(.moreOfMe, symbol: "person.fill", short: "Me", label: "Only photos of me")
-            focusOption(.balanced, symbol: "circle.grid.2x2.fill", short: "Mix", label: "A mix")
-            focusOption(.moreScenery, symbol: "mountain.2.fill", short: "Places", label: "More places")
+            focusTile(.moreOfMe, symbol: "person.fill", short: String(localized: "Me"), color: Luxe.coral, label: "Only photos of me")
+            focusTile(.balanced, symbol: "circle.grid.2x2.fill", short: String(localized: "Mix"), color: Luxe.honey, label: "A mix")
+            focusTile(.moreScenery, symbol: "mountain.2.fill", short: String(localized: "Places"), color: Luxe.emerald, label: "More places")
         }
-        .padding(6)
-        .glassCard(cornerRadius: 26)
     }
 
-    private func focusOption(_ mix: Mix, symbol: String, short: LocalizedStringKey, label: LocalizedStringKey) -> some View {
-        let selected = vm.mix == mix
-        return Button {
+    private func focusTile(_ mix: Mix, symbol: String, short: String, color: Color, label: LocalizedStringKey) -> some View {
+        LuxeTile(title: short, symbol: symbol, color: color, selected: vm.mix == mix) {
             withAnimation(Theme.Motion.snap) { vm.mix = mix }
-        } label: {
-            VStack(spacing: 6) {
-                Image(systemName: symbol).font(.system(size: 20, weight: .medium))
-                    .popWhenSelected(selected)
-                Text(short).font(.system(size: 12, weight: .semibold))
-            }
-            .foregroundStyle(selected ? Theme.onInk : Theme.ink.opacity(0.7))
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
-            .background {
-                if selected {
-                    RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Theme.ink)
-                        .matchedGeometryEffect(id: "focus", in: focusPill)
-                }
-            }
-            .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         }
-        .buttonStyle(PressableStyle())
         .accessibilityLabel(label)
-        .accessibilityAddTraits(selected ? .isSelected : [])
-        .sensoryFeedback(.selection, trigger: selected)
     }
 
     // MARK: Cards
@@ -234,21 +305,27 @@ struct SetupView: View {
                         PhotoThumbnail(photoID: pick.photoID, longEdge: 200)
                             .frame(width: 44, height: 56)
                             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(.white.opacity(0.8), lineWidth: 1))
+                            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(.white.opacity(0.3), lineWidth: 1))
                     }
                 }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Your last story").font(.system(size: 12)).foregroundStyle(Theme.inkSoft)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Your last story")
+                        .font(.system(size: 10, weight: .bold))
+                        .textCase(.uppercase)
+                        .tracking(1.4)
+                        .foregroundStyle(Luxe.gold)
                     Text(run.title.isEmpty ? String(localized: "Your story") : run.title)
-                        .font(.system(size: 17, weight: .semibold, design: .serif))
+                        .font(.system(size: 18, weight: .semibold, design: .serif))
+                        .foregroundStyle(Luxe.text)
                         .lineLimit(1)
                 }
                 Spacer()
-                Image(systemName: "chevron.forward").foregroundStyle(Theme.inkSoft)
+                IconBadge(symbol: "arrow.up.right", color: Luxe.gold, size: 30)
             }
             .padding(14)
             .contentShape(Rectangle())
-            .glassCard(cornerRadius: 24)
+            .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(Luxe.card.opacity(0.85)))
+            .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).strokeBorder(Luxe.line, lineWidth: 1))
         }
         .buttonStyle(PressableStyle())
         .accessibilityIdentifier("lastStoryCard")
@@ -256,7 +333,7 @@ struct SetupView: View {
 
     private var accessCard: some View {
         HStack(spacing: 14) {
-            Image(systemName: "photo.on.rectangle.angled").font(.system(size: 26, weight: .light))
+            IconBadge(symbol: "photo.on.rectangle.angled", color: Luxe.amber)
             Text("Eymra can't see your photos yet.").font(.system(size: 15, weight: .medium))
             Spacer()
             Button(app.access == .denied ? "Settings" : "Allow") {
@@ -265,18 +342,18 @@ struct SetupView: View {
             .buttonStyle(.glassSoft)
         }
         .padding(16)
-        .glassCard()
+        .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(Luxe.card))
     }
 
     private var limitedCard: some View {
         HStack(spacing: 14) {
-            Image(systemName: "eye.trianglebadge.exclamationmark").font(.system(size: 22, weight: .light))
+            IconBadge(symbol: "eye.trianglebadge.exclamationmark", color: Luxe.honey)
             Text("Only some photos are visible.").font(.system(size: 14))
             Spacer()
             Button("Allow all") { app.openSystemSettings() }.buttonStyle(.glassSoft)
         }
         .padding(16)
-        .glassCard()
+        .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(Luxe.card))
     }
 
     private var runButton: some View {
@@ -285,10 +362,10 @@ struct SetupView: View {
         } label: {
             HStack(spacing: 10) {
                 Text("Find my best photos")
-                Image(systemName: "arrow.right").font(.system(size: 15, weight: .semibold))
+                Image(systemName: "arrow.right").font(.system(size: 15, weight: .bold))
             }
         }
-        .buttonStyle(.glassPrimarySheen)
+        .buttonStyle(LuxeButtonStyle())
         .disabled(vm.photoCount == 0 || !app.access.isUsable)
         .padding(.horizontal, 20)
         .padding(.bottom, 84)
@@ -296,111 +373,11 @@ struct SetupView: View {
     }
 }
 
-// MARK: - Pieces
-
-/// Your own photos from the chosen time as a little scrapbook: tilted prints with white borders, and the count
-/// on a round ember sticker slapped across the corner.
-struct PhotoHero: View {
-    let ids: [String]
-    let count: Int?
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var float = false
-    /// The deal and the stamp play once per launch. Every return to Create replaying them felt slow, and the
-    /// stamp's tap of haptics got noisy.
-    @MainActor private static var hasDealt = false
-    @State private var dealt = PhotoHero.hasDealt
-    @State private var stamped = PhotoHero.hasDealt
-    /// Which print sits in which spot; a tap shuffles them.
-    @State private var turn = 0
-
-    private struct Spot { var x: CGFloat; var y: CGFloat; var angle: Double; var w: CGFloat }
-    private let spots: [Spot] = [
-        Spot(x: -98, y: 10, angle: -9, w: 118), Spot(x: 92, y: -6, angle: 7, w: 122),
-        Spot(x: -6, y: -16, angle: -2, w: 136), Spot(x: 40, y: 58, angle: 11, w: 96),
-    ]
-
-    var body: some View {
-        ZStack {
-            let shown = Array(ids.prefix(spots.count))
-            ForEach(Array(spots.enumerated()), id: \.offset) { i, _ in
-                let spot = spots[(i + turn) % spots.count]
-                let front = (i + turn) % spots.count == 2
-                printCard(id: i < shown.count ? shown[i] : nil, width: spot.w)
-                    .rotationEffect(.degrees(dealt ? spot.angle + (float ? (i.isMultiple(of: 2) ? 1.5 : -1.5) : 0) : 0))
-                    .offset(x: dealt ? spot.x : 0, y: dealt ? spot.y + (float ? -3 : 3) * (i.isMultiple(of: 2) ? 1 : -1) : 70)
-                    .opacity(dealt ? 1 : 0)
-                    .zIndex(front ? 2 : Double(i) * 0.1)
-                    .animation(.spring(duration: 0.8, bounce: 0.25).delay(reduceMotion ? 0 : 0.1 + Double(i) * 0.07), value: dealt)
-            }
-            sticker
-                .rotationEffect(.degrees(stamped ? -10 : -40))
-                .scaleEffect(stamped ? 1 : 1.9)
-                .opacity(stamped ? 1 : 0)
-                .offset(x: 118, y: 78)
-                .zIndex(3)
-                .animation(.spring(duration: 0.5, bounce: 0.35).delay(reduceMotion ? 0 : 0.55), value: stamped)
-        }
-        .frame(height: 260)
-        .frame(maxWidth: .infinity)
-        .contentShape(Rectangle())
-        .onTapGesture { withAnimation(.spring(duration: 0.6, bounce: 0.3)) { turn += 1 } }
-        .animation(Theme.Motion.pop, value: ids)
-        .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.7), trigger: stamped) { _, new in new }
-        .sensoryFeedback(.selection, trigger: turn)
-        .onAppear {
-            dealt = true
-            stamped = true
-            Self.hasDealt = true
-            guard !reduceMotion && !Theme.stillMotion else { return }
-            withAnimation(.easeInOut(duration: 3.6).repeatForever(autoreverses: true).delay(1)) { float = true }
-        }
-    }
-
-    private func printCard(id: String?, width: CGFloat) -> some View {
-        Group {
-            if let id {
-                PhotoThumbnail(photoID: id, longEdge: 400)
-            } else {
-                Theme.ink.opacity(0.06)
-                    .overlay(Image(systemName: "photo").font(.system(size: 24, weight: .light)).foregroundStyle(Theme.inkFaint))
-            }
-        }
-        .frame(width: width, height: width * 1.25)
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .padding(6)
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Theme.surface))
-        .shadow(color: .black.opacity(0.14), radius: 14, y: 8)
-        .transition(.scale(scale: 0.8).combined(with: .opacity))
-    }
-
-    private var sticker: some View {
-        VStack(spacing: -2) {
-            Text(count.map { "\($0)" } ?? "–")
-                .font(.system(size: 30, weight: .bold, design: .serif))
-                .monospacedDigit()
-                .contentTransition(.numericText())
-            Text(count == 1 ? "photo" : "photos")
-                .font(.system(size: 11, weight: .bold))
-                .textCase(.uppercase)
-                .tracking(0.6)
-        }
-        .foregroundStyle(.white)
-        .frame(width: 94, height: 94)
-        .background(Circle().fill(Theme.ember))
-        .overlay(Circle().strokeBorder(.white.opacity(0.9), style: StrokeStyle(lineWidth: 2, dash: [3, 4])).padding(5))
-        .shadow(color: Theme.ember.opacity(0.35), radius: 12, y: 6)
-        .animation(Theme.Motion.pop, value: count)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(count.map { $0 == 0 ? String(localized: "No photos from this time") : String(localized: "\($0) photos from this time") }
-                            ?? String(localized: "Counting your photos…"))
-        .accessibilityIdentifier("photoCount")
-    }
-}
-
 /// Photos per day for the last week, as soft bars. Tap a day to pick it.
 struct DayChart: View {
     let days: [RunViewModel.DayCount]
     let isSelected: (RunViewModel.DayCount) -> Bool
+    var tint: Color = Theme.ink
     let pick: (RunViewModel.DayCount) -> Void
     @State private var grown = false
 
@@ -415,7 +392,7 @@ struct DayChart: View {
                             .font(.system(size: 10, weight: .semibold).monospacedDigit())
                             .foregroundStyle(on ? Theme.ink : Theme.inkFaint)
                         Capsule()
-                            .fill(on ? AnyShapeStyle(Theme.ink) : AnyShapeStyle(Theme.ink.opacity(0.12)))
+                            .fill(on ? AnyShapeStyle(tint) : AnyShapeStyle(Theme.ink.opacity(0.12)))
                             .frame(height: grown ? max(6, 64 * CGFloat(day.count) / CGFloat(top)) : 6)
                             .animation(.spring(duration: 0.7, bounce: 0.3).delay(0.3 + Double(index) * 0.05), value: grown)
                         Text(label(day.start))
@@ -439,56 +416,18 @@ struct DayChart: View {
     }
 }
 
-/// A platform shown as the real shape of its post.
-struct PlatformTile: View {
-    let preset: PlatformPreset
-    let selected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 10) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .fill(selected ? AnyShapeStyle(Theme.ink) : AnyShapeStyle(Theme.ink.opacity(0.08)))
-                        .overlay(RoundedRectangle(cornerRadius: 7, style: .continuous).strokeBorder(Theme.ink.opacity(selected ? 0 : 0.25), lineWidth: 1))
-                        .aspectRatio(preset.primaryRatio.value, contentMode: .fit)
-                        .frame(height: 50)
-                        .frame(maxWidth: 58)
-                    Image(systemName: preset.symbol)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(selected ? Theme.onInk : Theme.inkSoft)
-                }
-                .frame(height: 56)
-                Text(preset.shortName)
-                    .font(.system(size: 12, weight: selected ? .bold : .medium))
-                    .lineLimit(1)
-            }
-            .foregroundStyle(Theme.ink)
-            .frame(width: 84, height: 104)
-            .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-            .glassCard(cornerRadius: 22, tint: selected ? .white.opacity(0.45) : nil)
-            .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(Theme.ink.opacity(selected ? 0.85 : 0), lineWidth: 1.5))
-            .scaleEffect(selected ? 1 : 0.96)
-        }
-        .buttonStyle(PressableStyle())
-        .accessibilityLabel(preset.name)
-        .accessibilityAddTraits(selected ? .isSelected : [])
-        .sensoryFeedback(.selection, trigger: selected)
-    }
-}
-
 /// One small pill per photo you'll post; tap one to set the count.
 struct CountDots: View {
     @Binding var count: Int
     let maximum: Int
+    var tint: Color = Theme.ink
 
     var body: some View {
         let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: min(10, maximum))
         LazyVGrid(columns: columns, spacing: 6) {
             ForEach(0..<maximum, id: \.self) { i in
                 Capsule()
-                    .fill(i < count ? AnyShapeStyle(Theme.ink) : AnyShapeStyle(Theme.ink.opacity(0.1)))
+                    .fill(i < count ? AnyShapeStyle(tint) : AnyShapeStyle(tint.opacity(0.14)))
                     .frame(height: 10)
                     .scaleEffect(i == count - 1 ? 1.15 : 1)
                     .contentShape(Rectangle().inset(by: -6))
