@@ -53,8 +53,12 @@ final class RunViewModel {
 
     // Outputs.
     private(set) var photoCount: Int?
-    /// A few photos from the chosen time, for the hero stack on Create.
+    /// A few photos from the chosen time, for the gallery ring on Create.
     private(set) var previewIDs: [String] = []
+    /// The latest photos in the library, so the ring and the backdrop never stand empty on a day without photos.
+    private(set) var recentIDs: [String] = []
+    /// What the ring and the backdrop show: the chosen time, or your latest photos when it has none.
+    var galleryIDs: [String] { previewIDs.isEmpty ? recentIDs : previewIDs }
     /// Photos taken on each of the last 7 days (oldest first), for the day chart.
     private(set) var days: [DayCount] = []
 
@@ -131,6 +135,20 @@ final class RunViewModel {
             previewIDs = Array(stride(from: 0, to: records.count, by: step).map { records[$0].id }.suffix(10))
         }
         if days.isEmpty { refreshDays() }
+        if recentIDs.isEmpty { refreshRecent() }
+    }
+
+    /// Up to 10 photos spread over the last 30 days, newest last.
+    func refreshRecent() {
+        guard app.access.isUsable else { return }
+        let source = app.source
+        Task {
+            let now = Date()
+            let records = (try? await source.records(in: DateInterval(start: now.addingTimeInterval(-30 * 86_400), end: now))) ?? []
+            let latest = Array(records.suffix(60))
+            let step = max(1, latest.count / 10)
+            recentIDs = Array(stride(from: 0, to: latest.count, by: step).map { latest[$0].id }.suffix(10))
+        }
     }
 
     func refreshDays() {

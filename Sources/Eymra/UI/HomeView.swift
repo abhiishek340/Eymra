@@ -42,7 +42,7 @@ struct SetupView: View {
                 masthead
                     .padding(.horizontal, 24)
                     .padding(.top, 8)
-                CircularPhotoGallery(ids: vm.previewIDs, scroll: galleryScroll)
+                CircularPhotoGallery(ids: vm.galleryIDs, scroll: galleryScroll)
                     .frame(height: 310)
                     .padding(.top, 6)
                     .riseIn(delay: 0.05)

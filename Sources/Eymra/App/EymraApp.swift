@@ -75,7 +75,7 @@ struct MainView: View {
     var body: some View {
         ZStack(alignment: .bottom) {
             if onStage {
-                LuxeStage(photoIDs: vm.previewIDs)
+                LuxeStage(photoIDs: vm.galleryIDs)
                     .transition(.opacity)
             }
             // Only the visible tab is on screen. Keeping hidden tabs at zero opacity left their scroll views
