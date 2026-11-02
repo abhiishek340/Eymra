@@ -43,7 +43,7 @@ struct SetupView: View {
                     .padding(.horizontal, 24)
                     .padding(.top, 8)
                 CircularPhotoGallery(ids: vm.galleryIDs, scroll: galleryScroll)
-                    .frame(height: 310)
+                    .frame(height: 300)
                     .padding(.top, 6)
                     .riseIn(delay: 0.05)
                 headline
@@ -317,7 +317,7 @@ struct SetupView: View {
                         .lineLimit(1)
                 }
                 Spacer()
-                IconBadge(symbol: "arrow.up.right", color: Luxe.gold, size: 30)
+                IconBadge(symbol: "arrow.up.right", color: Luxe.gold, size: 26)
             }
             .padding(14)
             .contentShape(Rectangle())
